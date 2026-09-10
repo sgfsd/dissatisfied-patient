@@ -1,0 +1,107 @@
+/* ============================================================
+   Vera Practice — глобальная дизайн-система
+   Токены, база, типографика, примитивы.
+   ============================================================ */
+
+:root {
+  /* Палитра */
+  --ink: #15312d;            /* основной текст, глубокий тёмно-зелёный */
+  --ink-2: #2c4a44;
+  --muted: #65756e;          /* вторичный текст */
+  --faint: #8b9892;          /* третичный */
+  --paper: #f6f2ea;          /* фон страницы, тёплый офф-вайт */
+  --paper-2: #efeade;
+  --surface: #fffdf8;        /* карточки */
+  --line: #e2dfd4;
+  --line-soft: #edeae0;
+  --coral: #cf6246;          /* акцент */
+  --coral-ink: #a94c34;
+  --coral-soft: #f3d8cb;
+  --mint: #d8e4da;
+  --mint-ink: #2f6b52;
+  --sage: #9db8a8;
+  --gold: #c9a24b;
+  --danger: #b3402f;
+  --ok: #3f8f6a;
+
+  /* Шрифты */
+  --sans: 'DM Sans', ui-sans-serif, system-ui, 'Segoe UI', Roboto, sans-serif;
+  --serif: 'Fraunces', 'Georgia', Cambria, 'Times New Roman', serif;
+
+  /* Радиусы и тени */
+  --r-s: 10px;
+  --r-m: 16px;
+  --r-l: 24px;
+  --shadow-sm: 0 1px 2px rgb(21 49 45 / 0.05), 0 4px 14px rgb(21 49 45 / 0.06);
+  --shadow-md: 0 6px 20px rgb(21 49 45 / 0.10), 0 2px 6px rgb(21 49 45 / 0.06);
+  --shadow-lg: 0 18px 48px rgb(21 49 45 / 0.16);
+
+  --focus: 0 0 0 3px rgb(207 98 70 / 0.28);
+}
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font: 400 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 { margin: 0; font-weight: 500; letter-spacing: -0.02em; }
+p { margin: 0; }
+button { font-family: inherit; }
+a { color: inherit; }
+
+::selection { background: var(--coral-soft); }
+
+:focus-visible { outline: none; box-shadow: var(--focus); border-radius: 6px; }
+
+/* ----- Примитивы (используются по всему продукту) ----- */
+
+.eyebrow {
+  font: 700 11px/1.4 var(--sans);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--coral);
+}
+
+.display-serif { font-family: var(--serif); font-style: italic; font-weight: 500; }
+
+button.vp-btn {
+  border: 0;
+  cursor: pointer;
+  border-radius: 999px;
+  font: 600 14px var(--sans);
+  color: #fff;
+  background: var(--coral);
+  padding: 13px 22px;
+  transition: transform .18s ease, box-shadow .18s ease, background .18s ease, opacity .18s;
+  box-shadow: 0 6px 18px rgb(207 98 70 / 0.25);
+}
+button.vp-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgb(207 98 70 / 0.32); }
+button.vp-btn:active { transform: translateY(0); }
+button.vp-btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
+
+button.vp-btn--ghost {
+  background: transparent;
+  color: var(--ink-2);
+  box-shadow: inset 0 0 0 1.5px var(--line);
+}
+button.vp-btn--ghost:hover { background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--ink-2); }
+button.vp-btn--dark { background: var(--ink); box-shadow: 0 6px 18px rgb(21 49 45 / 0.28); }
+
+/* Скроллбар */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cdd3c9; border-radius: 8px; border: 2px solid var(--paper); }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Плавное появление контента */
+@keyframes vp-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.vp-in { animation: vp-in .5s cubic-bezier(.2,.7,.2,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}

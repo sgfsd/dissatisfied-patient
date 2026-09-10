@@ -1,0 +1,13 @@
+# Нормализация переводов строк: в репозитории — LF, на диске — как принято в системе.
+* text=auto eol=lf
+
+# Windows-скрипты запуска должны остаться с CRLF, иначе cmd.exe их не разберёт.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Файлы, для которых диффы бессмысленны
+package-lock.json -diff linguist-generated
+*.png binary
+*.jpg binary
+*.mp3 binary
+*.db binary

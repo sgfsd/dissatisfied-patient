@@ -1,0 +1,27 @@
+# Зависимости
+node_modules/
+
+# Сборка Next.js
+.next/
+out/
+
+# Локальные данные: SQLite, кэш озвучки, загруженное аудио и ключ,
+# введённый через экран «Подключение» (data/settings.json)
+data/
+*.db
+*.db-journal
+
+# Локальные секреты — ключ провайдера может жить и здесь
+.env
+.env.local
+.env*.local
+
+# Локальные настройки Claude Code
+.claude/settings.local.json
+
+# Логи и временные файлы
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+*.tsbuildinfo

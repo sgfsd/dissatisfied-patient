@@ -1,0 +1,101 @@
+/* Шапка продукта (главная и история). */
+
+.vp-app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px clamp(16px, 4vw, 48px);
+}
+
+.vp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: var(--ink);
+}
+
+.vp-brand-mark {
+  width: 40px;
+  height: 40px;
+  border-radius: 13px;
+  background: var(--coral);
+  color: #fff;
+  font: italic 700 22px/1 var(--serif);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgb(207 98 70 / 0.3);
+}
+
+.vp-brand-text {
+  display: flex;
+  flex-direction: column;
+  font: 600 17px/1.15 var(--sans);
+  letter-spacing: -0.01em;
+}
+.vp-brand-text small {
+  margin-top: 2px;
+  font: 400 11.5px/1.2 var(--sans);
+  color: var(--muted);
+  letter-spacing: 0;
+}
+
+.vp-nav {
+  display: flex;
+  gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  padding: 4px;
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+
+.vp-nav-link {
+  font: 600 13.5px var(--sans);
+  color: var(--muted);
+  text-decoration: none;
+  padding: 7px 16px;
+  border-radius: 999px;
+  transition: color .15s, background .15s;
+}
+.vp-nav-link:hover { color: var(--ink-2); }
+.vp-nav-link.is-active { background: var(--ink); color: #fff; }
+
+.vp-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Кнопка «Подключение» — вход в настройки ключа и адреса провайдера. */
+.vp-key-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line-soft);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 999px;
+  padding: 9px 15px 9px 13px;
+  font: 600 13px var(--sans);
+  box-shadow: var(--shadow-sm);
+  transition: color .15s, border-color .15s;
+}
+.vp-key-btn:hover { color: var(--coral); border-color: var(--coral-soft); }
+.vp-key-btn svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+@media (max-width: 560px) {
+  .vp-key-btn { padding: 9px; }
+  .vp-key-btn svg { margin: 0; }
+  .vp-key-btn > *:not(svg) { display: none; }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "vera-practice",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Vera Practice — голосовой тренажёр коммуникации врача с недовольным пациентом",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "probe": "node scripts/probe-provider.mjs",
+    "regression": "tsx scripts/eval-regression.mts",
+    "seed": "tsx scripts/seed-fixtures.mts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.8.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.15.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  }
+}
