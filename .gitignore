@@ -1,6 +1,9 @@
 # Зависимости
 node_modules/
 
+# Портативный Node.js, который start.cmd скачивает сам, если в системе нет 20+
+.node/
+
 # Сборка Next.js
 .next/
 out/

@@ -4,6 +4,7 @@
 # Windows-скрипты запуска должны остаться с CRLF, иначе cmd.exe их не разберёт.
 *.cmd text eol=crlf
 *.bat text eol=crlf
+*.ps1 text eol=crlf
 
 # Файлы, для которых диффы бессмысленны
 package-lock.json -diff linguist-generated
