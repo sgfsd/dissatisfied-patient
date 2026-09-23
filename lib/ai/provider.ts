@@ -36,6 +36,8 @@ export interface TtsRequest {
   voice: string;
   /** Пациент моложе/старше, тембр и т.п. — только если модель это умеет. */
   instructions?: string;
+  /** Темп речи, 0.25–4.0. Эмоция задаёт его вместе с инструкцией. */
+  speed?: number;
 }
 
 export interface SttRequest {
@@ -55,6 +57,17 @@ export interface AiProvider {
 /* ---------- OpenAI-совместимая реализация ---------- */
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/* Ответ 200 не гарантирует JSON: прокси и балансировщики при сбое отдают
+   HTML-страницу. Такой ответ — сбой провайдера (его можно повторить),
+   а не внутренняя ошибка сервиса. */
+function parseProviderJson<T>(data: Buffer | string): T {
+  try {
+    return JSON.parse(String(data)) as T;
+  } catch {
+    throw new AiError('provider_unreachable', `Провайдер вернул не-JSON ответ: ${String(data).slice(0, 120)}`);
+  }
+}
 
 function statusToError(status: number, bodyText: string): AiError {
   if (status === 429) return new AiError('rate_limited', `Rate limited: ${bodyText.slice(0, 200)}`, status);
@@ -94,49 +107,85 @@ export class OpenAICompatibleProvider implements AiProvider {
     }
   }
 
+  /**
+   * Один обмен с моделью.
+   *
+   * Провайдер один, а моделей три семейства, и договариваются они по-разному:
+   * gpt-5/o-серия не принимают temperature и требуют max_completion_tokens,
+   * а часть моделей (в том числе некоторые сборки MiniMax и Qwen) отвечает
+   * 400 на response_format. Поэтому режим JSON — «мягкое» требование: если
+   * модель его не принимает, повторяем запрос без него и запоминаем это,
+   * чтобы не платить штрафным вызовом на каждой реплике. Разбор ответа всё
+   * равно устойчив к markdown-обёрткам (см. parseLooseJson).
+   */
+  private async chatOnce(opts: ChatOptions): Promise<ChatResult> {
+    const newGen = /^(gpt-5([.-]|$)|o[1-9](-|$)|chatgpt-)/i.test(opts.model);
+    const useJsonMode = opts.json && !OpenAICompatibleProvider.jsonModeUnsupported.has(opts.model);
+
+    const body: Record<string, unknown> = { model: opts.model, messages: opts.messages, stream: false };
+    if (!newGen) body.temperature = opts.temperature ?? 0;
+    if (opts.maxTokens) body[newGen ? 'max_completion_tokens' : 'max_tokens'] = opts.maxTokens;
+    if (useJsonMode) body.response_format = { type: 'json_object' };
+
+    const { res, data } = await this.raw('/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const text = String(data);
+      if (useJsonMode && res.status === 400 && /response_format|json_object|json mode/i.test(text)) {
+        OpenAICompatibleProvider.jsonModeUnsupported.add(opts.model);
+        return this.chatOnce(opts);
+      }
+      throw statusToError(res.status, text);
+    }
+
+    const json = parseProviderJson<{
+      choices?: { message?: { content?: string; reasoning_content?: string }; finish_reason?: string }[];
+      error?: { message?: string; code?: number | string };
+    }>(data);
+    // Агрегатор может ответить 200 с ошибкой апстрима в теле — например,
+    // MiniMax не знает response_format и сообщает об этом именно так.
+    if (json.error) {
+      const message = String(json.error.message ?? '');
+      if (useJsonMode && /response_format|json_object|json mode/i.test(message)) {
+        OpenAICompatibleProvider.jsonModeUnsupported.add(opts.model);
+        return this.chatOnce(opts);
+      }
+      throw statusToError(Number(json.error.code) || 502, message);
+    }
+    const choice = json.choices?.[0];
+    const content = choice?.message?.content ?? '';
+    if (!content.trim()) {
+      // Рассуждающие сборки иногда кладут весь ответ в reasoning_content,
+      // оставляя content пустым — это не отказ модели, а формат ответа.
+      const fallback = choice?.message?.reasoning_content ?? '';
+      if (fallback.trim()) return { content: fallback, finishReason: choice?.finish_reason ?? '' };
+      throw new AiError('refusal', 'Модель вернула пустой ответ');
+    }
+    return { content, finishReason: choice?.finish_reason ?? '' };
+  }
+
+  private static jsonModeUnsupported = new Set<string>();
+
+  /**
+   * Повтор при сетевых сбоях и перегрузке провайдера. Детерминизм оценки это
+   * не ломает: при temperature 0 повтор даёт тот же ответ. Повтор нужен из-за
+   * реальной картины на занятии — двадцать студентов бьются в провайдера
+   * одновременно и ловят 429, а сцена не должна падать студенту в лицо.
+   */
   async chat(opts: ChatOptions): Promise<ChatResult> {
-    const attempts = [0, 800].slice(0, 1); // пока без авто-ретраев: оценка должна быть детерминированной
+    const RETRYABLE = new Set(['rate_limited', 'provider_unreachable', 'timeout']);
     let lastError: unknown;
-    for (const delay of attempts) {
-      if (delay) await sleep(delay);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt) await sleep(600 * 2 ** (attempt - 1) + Math.floor(Math.random() * 250));
       try {
-        // Новое поколение (gpt-5, o-серия, ChatGPT-…): только max_completion_tokens
-        // и без temperature; классические модели — max_tokens + temperature.
-        const newGen = /^(gpt-5([.-]|$)|o[1-9](-|$)|chatgpt-)/i.test(opts.model);
-        const body: Record<string, unknown> = {
-          model: opts.model,
-          messages: opts.messages,
-          stream: false,
-        };
-        if (!newGen) body.temperature = opts.temperature ?? 0;
-        if (opts.maxTokens) body[newGen ? 'max_completion_tokens' : 'max_tokens'] = opts.maxTokens;
-        if (opts.json) {
-          body.response_format = { type: 'json_object' };
-          // для json_object некоторые модели требуют слово "json" в сообщениях — добавим в последнее user-сообщение
-        }
-        const { res, data } = await this.raw('/chat/completions', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const text = String(data);
-          const err = statusToError(res.status, text);
-          if ((err.code === 'provider_unreachable' || err.code === 'rate_limited') && delay) {
-            lastError = err;
-            continue;
-          }
-          throw err;
-        }
-        const json = JSON.parse(String(data)) as {
-          choices?: { message?: { content?: string }; finish_reason?: string }[];
-        };
-        const content = json.choices?.[0]?.message?.content ?? '';
-        if (!content.trim()) throw new AiError('refusal', 'Модель вернула пустой ответ');
-        return { content, finishReason: json.choices?.[0]?.finish_reason ?? '' };
+        return await this.chatOnce(opts);
       } catch (e) {
         lastError = e;
-        throw e;
+        if (!(e instanceof AiError) || !RETRYABLE.has(e.code)) throw e;
       }
     }
     throw lastError ?? new AiError('unknown', 'Chat failed');
@@ -153,6 +202,7 @@ export class OpenAICompatibleProvider implements AiProvider {
           voice: opts.voice,
           input: opts.text,
           ...(opts.instructions ? { instructions: opts.instructions } : {}),
+          ...(opts.speed && opts.speed !== 1 ? { speed: Math.min(4, Math.max(0.25, opts.speed)) } : {}),
         }),
       },
       true
@@ -187,7 +237,7 @@ export class OpenAICompatibleProvider implements AiProvider {
       }
     );
     if (!res.ok) throw statusToError(res.status, String(data).slice(0, 300));
-    const parsed = JSON.parse(String(data)) as { text?: string };
+    const parsed = parseProviderJson<{ text?: string }>(data);
     const text = (parsed.text ?? '').trim();
     if (!text) throw new AiError('refusal', 'Распознавание вернуло пустой текст');
     return text;
@@ -196,7 +246,7 @@ export class OpenAICompatibleProvider implements AiProvider {
   async models(): Promise<string[]> {
     const { res, data } = await this.raw('/models');
     if (!res.ok) throw statusToError(res.status, String(data).slice(0, 200));
-    const parsed = JSON.parse(String(data)) as { data?: { id: string }[] };
+    const parsed = parseProviderJson<{ data?: { id: string }[] }>(data);
     return (parsed.data ?? []).map((m) => m.id);
   }
 }
@@ -213,7 +263,10 @@ export function getProvider(): AiProvider {
   const apiKey = config.apiKey;
   const baseUrl = config.baseUrl;
   if (!apiKey) {
-    throw new AiError('bad_request', 'API-ключ не задан — откройте «Подключение» и вставьте ключ');
+    throw new AiError(
+      'bad_request',
+      'Ключ AI-провайдера не настроен. Преподаватель задаёт его в кабинете: «Подключение AI».',
+    );
   }
   if (!current || currentKey !== apiKey || currentBaseUrl !== baseUrl) {
     current = new OpenAICompatibleProvider(baseUrl, apiKey);
@@ -228,7 +281,10 @@ export async function probeCredentials(baseUrl: string, apiKey: string, timeoutM
   return new OpenAICompatibleProvider(baseUrl, apiKey, fetch, timeoutMs).models();
 }
 
-/** Для тестов/регресса: подменить реализацию. */
+/** Для тестов/регресса: подменить реализацию. Подмена держится, пока не
+    сменятся ключ или адрес провайдера. */
 export function setProviderForTesting(p: AiProvider) {
   current = p;
+  currentKey = config.apiKey;
+  currentBaseUrl = config.baseUrl;
 }

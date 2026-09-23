@@ -18,7 +18,7 @@ function loadEnv() {
 }
 
 const env = loadEnv();
-const BASE = env.AI_BASE_URL || 'https://api.proxyapi.ru/openai/v1';
+const BASE = env.AI_BASE_URL || 'https://api.proxyapi.ru/v1';
 const KEY = env.AI_API_KEY;
 if (!KEY) { console.error('Нет AI_API_KEY в .env'); process.exit(1); }
 
@@ -129,11 +129,11 @@ async function main() {
   const pick = (re, preferred = []) =>
     [...preferred, ...modelIds].find(id => id && re.test(id)) || null;
 
-  const chatCandidates = ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini', 'gpt-4.1', 'gpt-4', 'deepseek-chat', 'qwen2.5:7b', 'claude-3-5-haiku-20241022'];
+  const chatCandidates = ['openai/gpt-4o-mini', 'deepseek/deepseek-v4-flash', 'qwen/qwen3.5-flash-02-23', 'mistralai/mistral-small-3.2-24b-instruct', 'z-ai/glm-4.7-flash'];
   const chatModel = chatCandidates.find(id => modelIds.includes(id));
   if (chatModel) { await chatTest(chatModel); } else { line('\n[2] Нет известной chat-модели — смотрю по списку выше.'); }
 
-  const ttsCandidates = ['gpt-4o-mini-tts', 'tts-1-hd', 'tts-1'];
+  const ttsCandidates = ['openai/gpt-4o-mini-tts', 'openai/tts-1-hd', 'openai/tts-1'];
   const ttsModel = ttsCandidates.find(id => modelIds.includes(id));
   let ttsFile = null;
   if (ttsModel) {
@@ -143,7 +143,7 @@ async function main() {
     }
   } else line('\n[3] Нет известной TTS-модели в списке.');
 
-  const sttCandidates = ['whisper-1', 'gpt-4o-mini-transcribe', 'gpt-4o-transcribe'];
+  const sttCandidates = ['openai/whisper-1', 'openai/gpt-4o-mini-transcribe', 'openai/gpt-4o-transcribe'];
   const sttModels = sttCandidates.filter(id => modelIds.includes(id));
   if (ttsFile) {
     if (!sttModels.length) line('\n[4] Нет известной STT-модели.');

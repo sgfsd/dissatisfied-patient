@@ -70,7 +70,7 @@ a { color: inherit; }
 
 .display-serif { font-family: var(--serif); font-style: italic; font-weight: 500; }
 
-button.vp-btn {
+.vp-btn {
   border: 0;
   cursor: pointer;
   border-radius: 999px;
@@ -81,17 +81,17 @@ button.vp-btn {
   transition: transform .18s ease, box-shadow .18s ease, background .18s ease, opacity .18s;
   box-shadow: 0 6px 18px rgb(207 98 70 / 0.25);
 }
-button.vp-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgb(207 98 70 / 0.32); }
-button.vp-btn:active { transform: translateY(0); }
-button.vp-btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
+.vp-btn:hover { transform: translateY(-1px); box-shadow: 0 10px 24px rgb(207 98 70 / 0.32); }
+.vp-btn:active { transform: translateY(0); }
+.vp-btn:disabled { opacity: 0.5; cursor: default; transform: none; box-shadow: none; }
 
-button.vp-btn--ghost {
+.vp-btn--ghost {
   background: transparent;
   color: var(--ink-2);
   box-shadow: inset 0 0 0 1.5px var(--line);
 }
-button.vp-btn--ghost:hover { background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--ink-2); }
-button.vp-btn--dark { background: var(--ink); box-shadow: 0 6px 18px rgb(21 49 45 / 0.28); }
+.vp-btn--ghost:hover { background: var(--paper-2); box-shadow: inset 0 0 0 1.5px var(--ink-2); }
+.vp-btn--dark { background: var(--ink); box-shadow: 0 6px 18px rgb(21 49 45 / 0.28); }
 
 /* Скроллбар */
 ::-webkit-scrollbar { width: 10px; height: 10px; }
@@ -105,3 +105,130 @@ button.vp-btn--dark { background: var(--ink); box-shadow: 0 6px 18px rgb(21 49 4
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+.vp-auth-loading { min-height: 100vh; display: grid; place-items: center; }
+.vp-login { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 85% 10%, #e3e9df, transparent 45%), var(--paper); }
+.vp-login-card { width: min(440px, 100%); padding: clamp(24px, 5vw, 44px); background: var(--surface); border: 1px solid var(--line); border-radius: 28px; box-shadow: var(--shadow-lg); }
+.vp-login-card .vp-brand-mark { margin-bottom: 28px; }
+.vp-login-card h1 { font: 500 38px/1.1 var(--serif); margin: 8px 0 12px; }
+.vp-login-lead { color: var(--muted); margin-bottom: 24px; }
+.vp-login-card form { display: grid; gap: 14px; }
+.vp-login-card label, .vp-mode-pick label { display: grid; gap: 6px; font-size: 13px; font-weight: 600; }
+.vp-login-card input, .vp-mode-pick select, .vp-teacher select { width: 100%; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: white; color: var(--ink); font: inherit; }
+.vp-login-switch { margin-top: 22px; padding: 0; border: 0; background: none; color: var(--coral-ink); cursor: pointer; }
+.vp-mode-pick { display: flex; gap: 12px; flex-wrap: wrap; width: 100%; }
+.vp-mode-pick label { min-width: min(200px, 100%); flex: 1; }
+.vp-teacher main { padding-top: 54px; padding-bottom: 60px; }
+.vp-teacher-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; flex-wrap: wrap; }
+.vp-teacher-head h1 { font: 500 clamp(32px, 5vw, 50px) var(--serif); }
+.vp-teacher-head select { max-width: 250px; }
+.vp-teacher-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; margin-top: 32px; }
+.vp-teacher-grid article { min-width: 0; background: var(--surface); border: 1px solid var(--line); padding: 24px; border-radius: 20px; }
+.vp-teacher-grid h2 { margin: 8px 0 20px; }
+.vp-roster-row, .vp-session-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-top: 1px solid var(--line-soft);
+  padding: 12px 0;
+  /* Перенос по умолчанию: тесно становится от ширины колонки в сетке
+     кабинета, а не от ширины окна, поэтому media-запрос тут не помогает. */
+  flex-wrap: wrap;
+  row-gap: 10px;
+}
+.vp-roster-row small { display: block; color: var(--muted); }
+.vp-session-row span { color: var(--muted); }
+.vp-empty { color: var(--muted); padding: 24px 0; }
+/* Ниже 900px колонка становится слишком узкой для ростера и журнала. */
+@media (max-width: 900px) { .vp-teacher-grid { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   Общие примитивы уровня продукта.
+
+   В App Router стили едут вместе с тем компонентом, который их
+   импортировал: у маршрута /progress не было бы ни .vp-shell из
+   home.css, ни .vp-sec-head из results.css — вёрстка рассыпалась бы.
+   Поэтому всё, что используется больше чем на одном экране, живёт
+   здесь, а не в стилях конкретной фичи.
+   ============================================================ */
+
+/* Контейнер контента: одна ширина и одни поля на всех экранах. */
+.vp-shell {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding-left: clamp(16px, 4vw, 40px);
+  padding-right: clamp(16px, 4vw, 40px);
+}
+
+/* Размеры кнопок */
+.vp-btn--xs { padding: 7px 13px; font-size: 12.5px; }
+.vp-btn--sm { padding: 9px 16px; font-size: 13px; }
+.vp-btn--lg { padding: 15px 30px; font-size: 15.5px; }
+/* Кнопка-ссылка (скачивание файлов) должна выглядеть как кнопка. */
+a.vp-btn { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+
+/* Заголовок секции */
+.vp-sec-head h2 { font-size: 24px; }
+.vp-sec-head p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+
+/* Метки-чипы */
+.vp-tag {
+  font: 600 10.5px var(--sans);
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--paper-2);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+.vp-tag--phone { color: #8a6a1e; background: #f0e4c6; }
+.vp-tag--long { color: var(--mint-ink); background: var(--mint); }
+.vp-tag--exam { color: #7c2f20; background: #f4dcd2; }
+.vp-tag--danger { color: #fff; background: var(--danger); }
+
+/* Сообщения */
+.vp-error {
+  margin-top: 14px;
+  color: var(--danger);
+  background: #fbebe6;
+  border: 1px solid #f2cdc2;
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 13.5px;
+}
+.vp-error-inline { margin: 8px 2px 0; color: var(--danger); font-size: 12.5px; }
+.vp-notice {
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #e4f0e6;
+  border: 1px solid #c3dcc9;
+  border-radius: 12px;
+  color: #2b5c41;
+  font-size: 13.5px;
+}
+.vp-alert {
+  border-radius: 16px;
+  padding: 13px 18px;
+  font-size: 14px;
+  line-height: 1.55;
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vp-alert p { margin: 0; }
+.vp-alert--danger { background: #f9e4df; border: 1px solid #eec6ba; color: #7c2f20; }
+.vp-alert--warn { background: #f7edcf; border: 1px solid #e6d6a0; color: #6b5513; }
+.vp-alert--ok { background: #e4f0e6; border: 1px solid #c3dcc9; color: #2b5c41; }
+
+/* Индикатор загрузки */
+.vp-loader {
+  width: 40px; height: 40px;
+  border-radius: 50%;
+  border: 4px solid var(--line);
+  border-top-color: var(--coral);
+  animation: vp-spin .8s linear infinite;
+}
+@keyframes vp-spin { to { transform: rotate(360deg); } }

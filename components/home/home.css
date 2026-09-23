@@ -2,13 +2,6 @@
    Главная: герой, выбор повода, запуск сцены.
    ============================================================ */
 
-.vp-shell {
-  max-width: 1120px;
-  margin: 0 auto;
-  padding-left: clamp(16px, 4vw, 40px);
-  padding-right: clamp(16px, 4vw, 40px);
-}
-
 .vp-home main { padding-bottom: 40px; }
 
 /* ---------- Герой ---------- */
@@ -82,6 +75,42 @@
   color: var(--faint);
   text-align: center;
 }
+
+/* ---------- Назначенные экзамены ---------- */
+
+.vp-assigned {
+  padding-top: 30px;
+  padding-bottom: 6px;
+  border-top: 1px solid var(--line);
+}
+
+.vp-assigned-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+
+.vp-assigned-card {
+  background: var(--surface);
+  border: 1.5px solid var(--line);
+  border-left: 4px solid var(--dm, var(--coral));
+  border-radius: 16px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+.vp-assigned-card h3 { font-size: 16px; }
+.vp-assigned-title {
+  font: 700 11px var(--sans);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--dm, var(--coral));
+}
+.vp-assigned-meta { font-size: 12.5px; color: var(--muted); }
+.vp-assigned-card button { margin-top: 8px; }
 
 /* ---------- Выбор повода ---------- */
 
@@ -180,6 +209,30 @@
   box-shadow: 0 0 0 3px rgb(207 98 70 / 0.16);
 }
 .vp-cat.is-active .vp-cat-name { color: var(--coral-ink); }
+.vp-cat-card {
+  margin-top: 2px;
+  font: 600 11px var(--sans);
+  letter-spacing: 0.04em;
+  color: var(--faint);
+}
+
+/* Бейджи домена */
+.vp-domain-tags {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.vp-domain-note {
+  margin-top: 20px;
+  padding: 12px 16px;
+  background: var(--paper-2);
+  border-radius: 14px;
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
 
 /* ---------- Запуск ---------- */
 
@@ -196,25 +249,12 @@
   box-shadow: var(--shadow-sm);
 }
 
-.vp-btn--sm { padding: 9px 16px; font-size: 13px; }
-.vp-btn--lg { padding: 15px 30px; font-size: 15.5px; }
-
 .vp-hint {
   flex: 1;
   min-width: 240px;
   font-size: 12.5px;
   color: var(--faint);
   line-height: 1.5;
-}
-
-.vp-error {
-  margin-top: 14px;
-  color: var(--danger);
-  background: #fbebE6;
-  border: 1px solid #f2cdc2;
-  border-radius: 12px;
-  padding: 10px 14px;
-  font-size: 13.5px;
 }
 
 .vp-footer {

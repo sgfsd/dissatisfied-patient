@@ -6,6 +6,7 @@
    ============================================================ */
 
 import type { CriterionDef } from '../types';
+import { domainByKey, domainByRubricId } from '../domains';
 
 /* Универсальные критерии для сцен «недовольный пациент». */
 
@@ -112,6 +113,12 @@ function categoryExtra(title: string): CriterionDef {
 /** Рубрика для сцены: 4 универсальных + 1 категорийный критерий. */
 export function rubricForCategory(categoryTitle: string): CriterionDef[] {
   return [...UNIVERSAL, categoryExtra(categoryTitle)];
+}
+
+/** Новая точка входа; без параметров сохраняет прежнюю конфликтную рубрику. */
+export function rubricForScenario(categoryTitle: string, domainKey?: string, rubricId?: string): CriterionDef[] {
+  const domain = domainByRubricId(rubricId) ?? (domainKey ? domainByKey(domainKey) : undefined);
+  return domain ? domain.rubric.map((item) => ({ ...item })) : rubricForCategory(categoryTitle);
 }
 
 export const RUBRIC_MAX_SCORE = UNIVERSAL.reduce((s, c) => s + c.scale, 0) + 2; // = 12

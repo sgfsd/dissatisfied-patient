@@ -1,0 +1,297 @@
+/* ============================================================
+   Прогресс студента: плитки, график динамики, критерии, расспрос.
+   В конце — печатная версия: кнопка «Отчёт в PDF» печатает эту же
+   страницу, поэтому раскладка приведена под А4.
+   ============================================================ */
+
+.vp-progress main { padding-top: 40px; padding-bottom: 72px; }
+
+.vp-prog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.vp-prog-head h1 {
+  margin-top: 8px;
+  font: 500 clamp(30px, 4.6vw, 46px)/1.05 var(--serif);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.vp-prog-sub { margin-top: 10px; color: var(--muted); font-size: 14px; }
+.vp-prog-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.vp-delta {
+  font: 600 14px var(--sans);
+  letter-spacing: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  background: var(--paper-2);
+  color: var(--muted);
+}
+.vp-delta.is-up { background: #e0efe4; color: #2b6b47; }
+.vp-delta.is-down { background: #f7e3dd; color: #9a3c28; }
+
+/* ---------- Плитки ---------- */
+
+.vp-prog-tiles {
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+.vp-prog-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 20px;
+}
+.vp-prog-tile b { display: block; font: 500 36px/1 var(--serif); }
+.vp-prog-tile span { display: block; margin-top: 8px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.vp-prog-tile.is-high b { color: var(--ok); }
+.vp-prog-tile.is-mid b { color: var(--gold); }
+.vp-prog-tile.is-low b { color: var(--danger); }
+
+/* ---------- Общая карточка секции ---------- */
+
+.vp-card {
+  margin-top: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  padding: clamp(18px, 3vw, 30px);
+}
+
+/* ---------- График ---------- */
+
+.vp-chart svg { width: 100%; height: auto; display: block; margin-top: 16px; }
+.vp-chart-grid { stroke: var(--line-soft); stroke-width: 1; }
+.vp-chart-tick { font: 500 10px var(--sans); fill: var(--faint); }
+.vp-chart-line { fill: none; stroke: var(--coral); stroke-width: 2.4; stroke-linejoin: round; stroke-linecap: round; }
+.vp-chart-dot { fill: var(--surface); stroke: var(--coral); stroke-width: 2.4; transition: r .15s ease; }
+.vp-chart-dot.is-high { stroke: var(--ok); }
+.vp-chart-dot.is-mid { stroke: var(--gold); }
+.vp-chart-dot.is-low { stroke: var(--danger); }
+.vp-chart-dot.is-flagged { fill: var(--danger); }
+.vp-chart-caption { margin-top: 10px; font-size: 13px; color: var(--ink-2); min-height: 20px; }
+.vp-chart-hint { color: var(--faint); }
+
+/* ---------- Выводы ---------- */
+
+.vp-prog-notes {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+.vp-note { border-radius: 20px; padding: 20px 22px; border: 1px solid var(--line); }
+.vp-note ul { margin: 12px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px; }
+.vp-note li { font-size: 13.5px; line-height: 1.5; }
+.vp-note--good { background: #eaf3ec; border-color: #cfe3d5; }
+.vp-note--good .eyebrow { color: #2b6b47; }
+.vp-note--focus { background: #fbf0e9; border-color: #efd7c6; }
+.vp-note--focus .eyebrow { color: var(--coral-ink); }
+
+/* ---------- Критерии ---------- */
+
+.vp-crit-rows { margin-top: 18px; display: flex; flex-direction: column; }
+.vp-crit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) 68px minmax(80px, 1fr) 48px 46px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 0;
+  border-top: 1px solid var(--line-soft);
+}
+.vp-crit-row:first-child { border-top: 0; }
+.vp-crit-row-main { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vp-crit-row-name { font: 600 14px var(--sans); }
+.vp-crit-row-fw { font-size: 11.5px; color: var(--faint); }
+.vp-crit-row-bar { display: block; height: 8px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+.vp-crit-row-bar i { display: block; height: 100%; border-radius: 99px; transition: width .5s cubic-bezier(.2,.7,.2,1); }
+.vp-crit-row-num { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; font-size: 13.5px; }
+.vp-crit-row-delta {
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  text-align: right;
+  color: var(--faint);
+}
+.vp-crit-row-delta.is-up { color: #2b6b47; font-weight: 600; }
+.vp-crit-row-delta.is-down { color: var(--danger); font-weight: 600; }
+
+/* Заливка полос. Селекторы ограничены элементом i: голые .is-high и
+   соседи красили бы фоном ещё и счёт прогона, у которого тем же классом
+   задаётся только цвет текста. */
+.vp-crit-row-bar i.is-high,
+.vp-probe-bar i.is-high { background: var(--ok); }
+.vp-crit-row-bar i.is-mid,
+.vp-probe-bar i.is-mid { background: var(--gold); }
+.vp-crit-row-bar i.is-low,
+.vp-probe-bar i.is-low { background: var(--coral); }
+
+.vp-spark { width: 68px; height: 22px; }
+.vp-spark path { fill: none; stroke: var(--sage); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+.vp-spark--empty { display: block; }
+
+/* ---------- Расспрос ---------- */
+
+.vp-probe-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 10px 26px;
+}
+.vp-probe { display: grid; grid-template-columns: minmax(0, 1fr) 90px 52px; gap: 12px; align-items: center; font-size: 13px; }
+.vp-probe-label { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-probe-bar { display: block; height: 7px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+.vp-probe-bar i { display: block; height: 100%; border-radius: 99px; }
+.vp-probe-num { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+
+/* ---------- Разделы ---------- */
+
+.vp-domain-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 12px;
+}
+.vp-domain-cell {
+  background: var(--paper-2);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.vp-domain-cell b { font-size: 14px; }
+.vp-domain-pct { font: 500 24px/1 var(--serif); }
+.vp-domain-pct.is-high { color: var(--ok); }
+.vp-domain-pct.is-mid { color: var(--gold); }
+.vp-domain-pct.is-low { color: var(--danger); }
+.vp-domain-cell small { font-size: 11.5px; color: var(--faint); }
+
+/* ---------- Список прогонов ---------- */
+
+.vp-prog-list { margin-top: 12px; display: flex; flex-direction: column; }
+.vp-prog-row {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1.6fr) minmax(0, 1.4fr) 76px;
+  gap: 14px;
+  align-items: center;
+  padding: 13px 10px;
+  margin: 0 -10px;
+  border-top: 1px solid var(--line-soft);
+  border-radius: 12px;
+  text-decoration: none;
+  color: inherit;
+  transition: background .15s ease;
+}
+.vp-prog-row:hover { background: var(--paper-2); }
+.vp-prog-date { font-size: 12px; color: var(--faint); }
+.vp-prog-what { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vp-prog-what b { font-size: 14px; }
+.vp-prog-what small { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-prog-tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.vp-prog-score { text-align: right; font: 600 18px var(--sans); font-variant-numeric: tabular-nums; }
+.vp-prog-score i { font: 400 12px var(--sans); font-style: normal; color: var(--faint); }
+.vp-prog-score.is-high { color: var(--ok); }
+.vp-prog-score.is-low { color: var(--danger); }
+
+.vp-prog-empty {
+  margin-top: 36px;
+  padding: 44px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--r-l);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  color: var(--muted);
+}
+
+.vp-prog-foot {
+  margin-top: 30px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 12px;
+  color: var(--faint);
+}
+
+/* ---------- Скелетоны загрузки ---------- */
+
+.vp-skeleton-head { padding-top: 40px; display: flex; flex-direction: column; gap: 14px; }
+.vp-skeleton-tiles { margin-top: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.vp-skel {
+  display: block;
+  border-radius: 12px;
+  background: linear-gradient(90deg, var(--paper-2) 25%, var(--line-soft) 50%, var(--paper-2) 75%);
+  background-size: 200% 100%;
+  animation: vp-shimmer 1.4s linear infinite;
+}
+.vp-skel--line { height: 14px; width: 30%; }
+.vp-skel--title { height: 44px; width: 55%; border-radius: 16px; }
+.vp-skel--tile { height: 104px; border-radius: 20px; }
+@keyframes vp-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+@media (prefers-reduced-motion: reduce) { .vp-skel { animation: none; } }
+
+@media (max-width: 860px) {
+  .vp-crit-row { grid-template-columns: minmax(0, 1fr) 56px 44px; row-gap: 6px; }
+  .vp-crit-row-bar { grid-column: 1 / -1; }
+  .vp-prog-row { grid-template-columns: minmax(0, 1fr) 72px; row-gap: 6px; }
+  .vp-prog-date, .vp-prog-tags { grid-column: 1 / -1; }
+}
+
+/* ============================================================
+   Печать: «Отчёт в PDF» печатает эту же страницу. Убираем шапку,
+   кнопки и интерактив, разворачиваем карточки в плоский документ,
+   не разрываем секции между страницами.
+   ============================================================ */
+
+@media print {
+  @page { size: A4; margin: 14mm 12mm; }
+
+  .vp-app-header,
+  .vp-noprint,
+  .vp-prog-empty .vp-btn { display: none !important; }
+
+  body { background: #fff; }
+  .vp-progress main { padding: 0; max-width: none; }
+
+  .vp-card,
+  .vp-prog-tile,
+  .vp-note,
+  .vp-domain-cell {
+    border: 1px solid #d8d4c8;
+    box-shadow: none;
+    background: #fff;
+    break-inside: avoid;
+  }
+  .vp-card { margin-top: 12px; padding: 14px 16px; }
+  .vp-prog-head h1 { font-size: 26px; }
+  .vp-sec-head h2 { font-size: 17px; }
+  .vp-chart svg { max-height: 190px; }
+  .vp-prog-row { break-inside: avoid; padding: 7px 0; margin: 0; }
+  .vp-prog-row:hover { background: none; }
+  .vp-in { animation: none !important; }
+  .vp-skel { animation: none; }
+  a[href]::after { content: none !important; }
+}
+
+/* Раскрытие длинного списка критериев */
+.vp-more {
+  margin-top: 16px;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 9px 18px;
+  font: 600 13px var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.vp-more:hover { background: var(--paper-2); border-color: var(--ink-2); }

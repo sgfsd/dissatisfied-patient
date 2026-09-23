@@ -69,33 +69,72 @@
   gap: 10px;
 }
 
-/* Кнопка «Подключение» — вход в настройки ключа и адреса провайдера. */
-.vp-key-btn {
+/* Остаток лимита обращений к AI: контроль расхода виден студенту сразу. */
+.vp-quota {
+  font: 600 12.5px var(--sans);
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 999px;
+  padding: 7px 12px;
+  box-shadow: var(--shadow-sm);
+}
+.vp-quota.is-low { color: var(--coral-ink); border-color: var(--coral-soft); background: #fbece6; }
+
+/* Полный экран — «приложение, а не вкладка». */
+.vp-header-icon {
+  width: 36px;
+  height: 36px;
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
   border: 1px solid var(--line-soft);
   background: var(--surface);
   color: var(--muted);
+  border-radius: 12px;
   cursor: pointer;
-  border-radius: 999px;
-  padding: 9px 15px 9px 13px;
-  font: 600 13px var(--sans);
+  font-size: 15px;
   box-shadow: var(--shadow-sm);
   transition: color .15s, border-color .15s;
 }
-.vp-key-btn:hover { color: var(--coral); border-color: var(--coral-soft); }
-.vp-key-btn svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.6;
-  stroke-linecap: round;
-}
+.vp-header-icon:hover { color: var(--coral); border-color: var(--coral-soft); }
 
 @media (max-width: 560px) {
-  .vp-key-btn { padding: 9px; }
-  .vp-key-btn svg { margin: 0; }
-  .vp-key-btn > *:not(svg) { display: none; }
+  .vp-quota { display: none; }
+}
+.vp-user { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--muted); }
+.vp-user button { border: 1px solid var(--line); border-radius: 999px; background: transparent; padding: 7px 12px; color: var(--ink); cursor: pointer; }
+@media (max-width: 680px) { .vp-user span { display: none; } }
+
+/* ============================================================
+   Узкие экраны. Шапка не помещалась в 375px: навигация, лимит,
+   полный экран и имя пользователя выстраивались в одну нерушимую
+   строку и растягивали страницу по горизонтали на всех разделах.
+   ============================================================ */
+
+.vp-app-header { flex-wrap: wrap; row-gap: 12px; }
+.vp-header-right { flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.vp-nav { min-width: 0; }
+
+@media (max-width: 760px) {
+  .vp-app-header { padding: 14px clamp(12px, 4vw, 24px); }
+  .vp-brand-text small { display: none; }
+  /* Навигация уходит на свою строку и прокручивается, если разделов много. */
+  .vp-header-right { width: 100%; justify-content: space-between; }
+  .vp-nav {
+    order: 3;
+    width: 100%;
+    overflow-x: auto;
+    scrollbar-width: none;
+    justify-content: flex-start;
+  }
+  .vp-nav::-webkit-scrollbar { display: none; }
+  .vp-nav-link { white-space: nowrap; padding: 7px 13px; }
+}
+
+@media (max-width: 420px) {
+  .vp-brand-mark { width: 34px; height: 34px; border-radius: 11px; font-size: 19px; }
+  .vp-brand-text { font-size: 15px; }
+  .vp-user button { padding: 6px 10px; font-size: 12.5px; }
 }

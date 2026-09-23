@@ -1,6 +1,10 @@
 /* Открывает браузер, как только локальный сервер начнёт отвечать.
-   Запускается из start.cmd параллельно с `next dev`: так пользователю не
+   Запускается из start.cmd параллельно с сервером: так пользователю не
    нужно угадывать момент и вручную набирать адрес.
+
+   Готовность проверяется по /api/health, и это не случайно: запрос открывает
+   базу, а вместе с ней выполняются миграции и печатается код первого
+   запуска — в то самое окно, где работает сервер, ещё до открытия браузера.
 
    Флаг --print печатает адрес, но браузер не открывает (проверка готовности). */
 
@@ -46,9 +50,10 @@ function openBrowser(target) {
 
 async function waitForServer() {
   const deadline = Date.now() + deadlineMs;
+  const probe = new URL('/api/health', url).href;
   while (Date.now() < deadline) {
     try {
-      const res = await fetch(url, { method: 'GET' });
+      const res = await fetch(probe, { method: 'GET' });
       // Любой ответ (в том числе 404) означает, что сервер уже слушает порт.
       if (res.status < 500) return true;
     } catch {

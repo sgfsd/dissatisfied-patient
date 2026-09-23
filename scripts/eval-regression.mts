@@ -13,7 +13,7 @@
    ============================================================ */
 
 import { evaluateDialogue, type EvalVerdict } from '../lib/evaluation/evaluator';
-import { rubricForCategory } from '../lib/evaluation/rubric';
+import { computeCoverage, domainCase } from '../lib/domains';
 import { personaById } from '../lib/personas';
 import { AiError } from '../lib/ai/errors';
 import type { EvalMessage } from '../lib/evaluation/evaluator';
@@ -30,6 +30,7 @@ const opt = (flag: string) => {
 const caseFilter = opt('--case');
 const limit = opt('--limit') ? Number(opt('--limit')) : Infinity;
 const workers = Math.max(1, Number(opt('--workers') ?? 1));
+const model = opt('--model');
 
 /* ---------- построение EvaluateParams из кейса ---------- */
 
@@ -56,8 +57,22 @@ function buildParams(c: RegressionCase) {
     hiddenMotive: c.motive,
     messages: toEvalMessages(c),
     requestId: `regr_${c.key}`,
+    domainKey: c.domainKey,
+    rubricId: c.rubricId,
+    caseFacts: c.caseFacts,
+    model,
   };
   if (c.actingNotes) (params as { actingNotes?: string }).actingNotes = c.actingNotes;
+  /* Кейсы со скрытой карточкой проверяют и покрытие опроса: оно считается
+     тем же движком, что и в проде, по тем же репликам врача. */
+  const card = c.caseId ? domainCase(c.domainKey, c.caseId)?.card : undefined;
+  if (card) {
+    (params as { card?: typeof card }).card = card;
+    (params as { coverage?: ReturnType<typeof computeCoverage> }).coverage = computeCoverage(
+      card,
+      c.dialogue.map((turn) => turn.doctor)
+    );
+  }
   return params;
 }
 

@@ -105,9 +105,23 @@ export interface SessionPublicDTO {
   personaKey: string;
   exchangesLimit: number;
   exchangesDone: number;
-  opener: { text: string; emotion: PatientEmotion; audioUrl: string };
-  status: 'active' | 'done';
+  /** audioUrl — null, если озвучка не удалась: реплика показывается текстом. */
+  opener: { text: string; emotion: PatientEmotion; audioUrl: string | null };
+  status: 'active' | 'evaluating' | 'done' | 'aborted';
   createdAt: number;
+  /* Метаданные движка: домен, кейс, канал, режим и этапы — их добавляет publicMetadata. */
+  domainKey?: string;
+  caseId?: string | null;
+  channel?: ScenarioChannel;
+  framework?: string | null;
+  mode?: SessionMode;
+  format?: SessionFormat;
+  stageIndex?: number;
+  stages?: StageDef[];
+  deadlineAt?: number | null;
+  assignmentId?: string | null;
+  /** Потолок одной голосовой записи, секунды (RECORD_MAX_SECONDS). */
+  recordMaxSeconds?: number;
 }
 
 /** Элемент рубрики — привязан к признанному стандарту коммуникации. */
@@ -120,12 +134,231 @@ export interface CriterionDef {
   verify: string;
 }
 
+/** Учебные домены нового реестра. Старые отделения разрешаются через aliases. */
+export type TrainingDomainKey =
+  | 'conflict'
+  | 'bad-news'
+  | 'consent-ethics'
+  | 'motivation'
+  | 'error-disclosure'
+  | 'family'
+  | 'barriers'
+  | 'call-center'
+  | 'reception';
+
+export type ScenarioChannel = 'visual' | 'voice-only';
+
+/** Режим прохождения: практика — сколько угодно раз, экзамен — один заход. */
+export type SessionMode = 'practice' | 'exam';
+/** Формат: короткая сцена или полная консультация «регистратура → выписка». */
+export type SessionFormat = 'short' | 'long';
+
+export interface DomainCardSchema {
+  title: string;
+  short: string;
+  accent: string;
+  channel: ScenarioChannel;
+  framework: string;
+}
+
+/* ---------- Скрытая карточка кейса ---------- */
+
+/**
+ * Домен опроса. Единая таксономия для двух вещей сразу: покрытия анамнеза
+ * в длинной консультации и идентификации звонящего в колл-центре. Оценка
+ * «что спросил — что пропустил» считается по ней детерминированно, без LLM.
+ */
+export type ProbeDomain =
+  | 'identity'
+  | 'reason'
+  | 'onset'
+  | 'character'
+  | 'severity'
+  | 'timing'
+  | 'triggers'
+  | 'associated'
+  | 'red-flags'
+  | 'history'
+  | 'medication'
+  | 'allergy'
+  | 'family-history'
+  | 'social'
+  | 'ice'
+  | 'logistics';
+
+export const PROBE_LABELS: Record<ProbeDomain, string> = {
+  identity: 'Идентификация собеседника',
+  reason: 'Повод обращения',
+  onset: 'Начало: когда и с чего',
+  character: 'Характер жалобы',
+  severity: 'Выраженность',
+  timing: 'Динамика и длительность',
+  triggers: 'Что усиливает и что облегчает',
+  associated: 'Сопутствующие симптомы',
+  'red-flags': 'Тревожные признаки',
+  history: 'Перенесённые болезни и операции',
+  medication: 'Принимаемые препараты',
+  allergy: 'Аллергии и непереносимость',
+  'family-history': 'Семейный анамнез',
+  social: 'Быт, работа, привычки',
+  ice: 'Представления, тревоги и ожидания',
+  logistics: 'Маршрут, документы, запись',
+};
+
+/**
+ * Один скрытый факт из карточки. Пациент сообщает его правдиво, но только
+ * когда врач действительно об этом спросил: совпадение ищется по `cues`
+ * в репликах врача. Авторского дерева диалога нет — есть факты и правила.
+ */
+export interface CaseFact {
+  id: string;
+  probe: ProbeDomain;
+  /** Как факт называется в отчёте: «аллергия на пенициллин». */
+  label: string;
+  /** Что именно пациент говорит, если спросили. */
+  value: string;
+  /** Подстроки вопроса врача, по которым факт считается запрошенным. */
+  cues: string[];
+  /** Пропуск такого факта — существенная ошибка сбора. */
+  critical?: boolean;
+  /** Пациент выдаёт сам, без вопроса (входит в открывающую жалобу). */
+  volunteered?: boolean;
+}
+
+/** Полная скрытая карточка кейса: то, что знает ИИ-пациент, но не знает врач. */
+export interface CaseCard {
+  /** Внутренняя сводка для «режиссёра» сцены. */
+  headline: string;
+  /** С чем человек обращается — видно сразу. */
+  presenting: string;
+  facts: CaseFact[];
+  /** Признаки, которые обязаны быть отработаны, если врач до них добрался. */
+  redFlags: string[];
+  /** Что должно прозвучать в плане — ориентир для оценщика. */
+  expectedPlan: string[];
+  /** Сеть безопасности: при каких признаках вернуться/вызвать помощь. */
+  safetyNet: string[];
+}
+
+export interface DomainCaseDef {
+  id: string;
+  title: string;
+  brief: string;
+  seeds: string[];
+  caseFacts?: Record<string, string | number | boolean | string[]>;
+  /** Скрытая карточка: анамнез длинной консультации или данные звонящего. */
+  card?: CaseCard;
+  /** Персонажи, которым кейс подходит по возрасту и роли. */
+  personaPool?: string[];
+}
+
+export interface StageDef {
+  id: string;
+  title: string;
+  required: boolean;
+  /** Что именно должно произойти на этапе — подсказка актёру и оценщику. */
+  goal?: string;
+}
+
+export interface StagePlanCapability {
+  enabled: boolean;
+  stages: StageDef[];
+}
+
+export interface CalibrationExample {
+  title: string;
+  patient: string;
+  clinician: string;
+  assessment: string;
+}
+
+export interface TrainingDomainDef {
+  key: TrainingDomainKey;
+  aliases: string[];
+  card: DomainCardSchema;
+  rubricId: string;
+  rubric: CriterionDef[];
+  stagePlan: StagePlanCapability;
+  cases: DomainCaseDef[];
+  calibration: CalibrationExample[];
+  /** Какие форматы доступны. Длинная консультация — только там, где есть карточка. */
+  formats: SessionFormat[];
+  /**
+   * Критерий, который считается движком детерминированно по карточке кейса,
+   * а не моделью: покрытие опроса. Модели он не показывается как задание.
+   */
+  coverageCriterion?: CriterionDef;
+  /** Сколько ответов врача в длинном формате. */
+  longExchanges?: number;
+}
+
+/* ---------- Публичный каталог разделов ---------- */
+
+/**
+ * То, что о кейсе можно показывать в браузере. Скрытая карточка, рубрика,
+ * калибровочные эталоны и сиды генератора сюда сознательно не входят:
+ * всё, что попадает в клиентский бандл, студент может прочитать в DevTools.
+ */
+export interface PublicCase {
+  id: string;
+  title: string;
+  brief: string;
+  /** Сколько фактов в скрытой карточке (сами факты не отдаются); null — карточки нет. */
+  factCount: number | null;
+}
+
+export interface PublicDomain {
+  key: TrainingDomainKey;
+  title: string;
+  short: string;
+  accent: string;
+  channel: ScenarioChannel;
+  framework: string;
+  formats: SessionFormat[];
+  /** Названия этапов разговора. */
+  stages: string[];
+  cases: PublicCase[];
+}
+
+/* ---------- Покрытие опроса ---------- */
+
+export interface CoverageItem {
+  id: string;
+  probe: ProbeDomain;
+  label: string;
+  asked: boolean;
+  critical: boolean;
+  /** Реплика врача, в которой вопрос прозвучал. */
+  quote: string | null;
+}
+
+export interface CoverageGroup {
+  probe: ProbeDomain;
+  label: string;
+  asked: number;
+  total: number;
+}
+
+export interface CoverageReport {
+  items: CoverageItem[];
+  groups: CoverageGroup[];
+  asked: number;
+  total: number;
+  criticalMissed: string[];
+  score: number;
+  maxScore: number;
+  /** Короткая сводка текстом — идёт в промт оценщика и в отчёт. */
+  summary: string;
+}
+
+
 /** Ответ «живого» пациента на реплику врача. */
 export interface PatientTurnOutcome {
   kind: 'patient';
   text: string;
   emotion: PatientEmotion;
-  audioUrl: string;
+  /** null — озвучка не удалась, реплика показывается только текстом. */
+  audioUrl: string | null;
   isFinalPatientLine: boolean;
 }
 export interface EvalReadyOutcome {
@@ -155,6 +388,8 @@ export interface EvaluationDTO {
   /** Производные: суммарный балл. */
   totalScore: number;
   maxScore: number;
+  /** Покрытие опроса — только там, где у кейса есть скрытая карточка. */
+  coverage: CoverageReport | null;
 }
 
 /** Запись для страницы истории. */
@@ -172,14 +407,6 @@ export interface HistoryRow {
   maxScore: number;
   overallSummary: string;
   hasSafetyFlag: boolean;
+  mode: SessionMode;
+  format: SessionFormat;
 }
-
-export const CATEGORY_SLUGS: Record<string, string> = {
-  'Терапия': 'therapy',
-  'Хирургия': 'surgery',
-  'Педиатрия': 'pediatrics',
-  'Амбулатория': 'outpatient',
-  'Стационар': 'inpatient',
-};
-
-export const DOMAIN_ORDER = ['Амбулатория', 'Стационар', 'Терапия', 'Хирургия', 'Педиатрия'] as const;

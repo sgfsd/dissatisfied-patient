@@ -2,16 +2,30 @@
   "name": "vera-practice",
   "version": "0.1.0",
   "private": true,
-  "description": "Vera Practice — голосовой тренажёр коммуникации врача с недовольным пациентом",
-  "engines": { "node": ">=20" },
+  "description": "Vera Practice — тренажёр клинической коммуникации: приём, колл-центр и полная консультация с AI-разбором",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",
+    "setup:key": "tsx scripts/setup-key.mts",
+    "check:secrets": "node scripts/check-secrets.mjs",
+    "check:bundle": "node scripts/check-bundle.mjs",
+    "pack:handin": "node scripts/pack-handin.mjs",
     "probe": "node scripts/probe-provider.mjs",
+    "check:coverage": "tsx scripts/coverage-check.mts",
+    "smoke:backend": "node scripts/backend-smoke.mjs",
     "regression": "tsx scripts/eval-regression.mts",
-    "seed": "tsx scripts/seed-fixtures.mts"
+    "benchmark": "tsx scripts/model-benchmark.mts",
+    "benchmark:tasks": "tsx scripts/task-benchmark.mts",
+    "benchmark:evaluator": "tsx scripts/evaluator-benchmark.mts",
+    "screen": "tsx scripts/candidate-screen.mts",
+    "screen:report": "tsx scripts/candidate-report.mts",
+    "screen:cost": "tsx scripts/candidate-cost.mts",
+    "seed": "tsx scripts/seed-demo.mts"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.0",

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Не даёт закоммитить ключ провайдера или .env. Подключение (один раз):
+#   git config core.hooksPath .githooks
+exec node scripts/check-secrets.mjs --staged

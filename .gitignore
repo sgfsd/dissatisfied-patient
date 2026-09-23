@@ -11,13 +11,21 @@ out/
 # Локальные данные: SQLite, кэш озвучки, загруженное аудио и ключ,
 # введённый через экран «Подключение» (data/settings.json)
 data/
+data-smoke/
+data-demo/
 *.db
 *.db-journal
 
-# Локальные секреты — ключ провайдера может жить и здесь
+# Локальные секреты — ключ провайдера может жить и здесь.
+# Игнорируются все варианты .env (.env.local, .env.production, …),
+# в репозиторий идёт только шаблон без значений.
 .env
-.env.local
-.env*.local
+.env.*
+!.env.example
+
+# Архив для сдачи (npm run pack:handin) — внутри лежит .env с ключом
+handin/
+*.zip
 
 # Локальные настройки Claude Code
 .claude/settings.local.json

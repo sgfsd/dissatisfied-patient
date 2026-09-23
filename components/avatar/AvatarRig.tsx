@@ -264,6 +264,7 @@ export const AvatarRig = forwardRef<AvatarHandle, AvatarRigProps>(function Avata
   { persona, emotion, attentive = true, listening = false, thinking = false, className, onSpeechProgress },
   ref
 ) {
+  const svgRef = useRef<SVGSVGElement>(null);
   const headRef = useRef<SVGGElement>(null);
   const browLRef = useRef<SVGPathElement>(null);
   const browRRef = useRef<SVGPathElement>(null);
@@ -497,7 +498,9 @@ export const AvatarRig = forwardRef<AvatarHandle, AvatarRigProps>(function Avata
       if (lidRRef.current) lidRRef.current.setAttribute('transform',
         `translate(230 243) scale(1 ${lidDown.toFixed(3)}) translate(-230 -243)`);
 
-      const pupils = document.querySelectorAll<SVGGElement>('[data-vp-pupil]');
+      // Только зрачки своего рига: общий querySelectorAll по документу двигал
+      // бы глаза всех аватаров на странице сразу.
+      const pupils = svgRef.current?.querySelectorAll<SVGGElement>('[data-vp-pupil]') ?? [];
       pupils.forEach((g) => {
         g.setAttribute('transform', `translate(${(lookX * 2.3).toFixed(2)} ${(lookY * 2.1).toFixed(2)})`);
       });
@@ -558,10 +561,29 @@ export const AvatarRig = forwardRef<AvatarHandle, AvatarRigProps>(function Avata
       if (sp.speaking && sp.duration > 0 && now - sp.startedAt > sp.duration * 1000 + 300) {
         sp.speaking = false;
       }
+      /* Если браузер так и не прислал ended/error, speak() висел бы вечно, а
+         вместе с ним и экран сцены («пациент говорит»). Отпускаем с запасом. */
+      if (resolveRef.current && sp.duration > 0 && now - sp.startedAt > sp.duration * 1000 + 2500) {
+        const release = resolveRef.current;
+        resolveRef.current = null;
+        release();
+      }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, []);
+
+  /* Уход со сцены посреди реплики: голос должен замолчать, а аудиоконтекст —
+     закрыться. Иначе пациент продолжал говорить уже на главной, а контексты
+     копились с каждой сценой (браузеры ограничивают их число). */
+  useEffect(() => () => {
+    stopSpeaking();
+    const ctx = ctxRef.current;
+    ctxRef.current = null;
+    analyserRef.current = null;
+    if (ctx && ctx.state !== 'closed') void ctx.close().catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const s = persona.art;
@@ -572,7 +594,7 @@ export const AvatarRig = forwardRef<AvatarHandle, AvatarRigProps>(function Avata
   const f = (n: number) => n.toFixed(1);
 
   return (
-    <svg key={persona.key} viewBox="0 0 420 520" className={className} role="img" aria-label={`Пациент ${persona.firstName}`}>
+    <svg ref={svgRef} key={persona.key} viewBox="0 0 420 520" className={className} role="img" aria-label={`Пациент ${persona.firstName}`}>
       <defs>
         {/* освещение лица: верхний мягкий свет */}
         <radialGradient id={`${gid}-glow`} cx="0.42" cy="0.3" r="0.85">
@@ -789,11 +811,12 @@ export const AvatarRig = forwardRef<AvatarHandle, AvatarRigProps>(function Avata
         <path ref={browRRef} d={browD(230, 0, 0)} fill={s.browColor} />
 
         {/* рот: нижняя губа → полость → язык → зубы → верхняя губа */}
-        <path ref={lipBotRef} d={initialLips.bot} fill={s.lips} />
+        {/* контуры губ lipSet строит от x = 0, полость и зубы — от центра лица */}
+        <path ref={lipBotRef} d={initialLips.bot} fill={s.lips} transform="translate(200 0)" />
         <path ref={mouthDarkRef} d={initialLips.dark} fill="#4c1a15" />
         <path ref={tongueRef} d={initialLips.tongue} fill="#a84537" opacity="0" />
         <path ref={teethRef} d={initialLips.teeth} fill="#fff9ec" opacity="0" />
-        <path ref={lipTopRef} d={initialLips.top} fill={s.lips} />
+        <path ref={lipTopRef} d={initialLips.top} fill={s.lips} transform="translate(200 0)" />
         {/* мягкий блик нижней губы */}
         <ellipse cx="200" cy={MOUTH_Y + 3.4} rx="9" ry="2.4" fill="#ffffff" opacity="0.18" filter={`url(#${gid}-bl1)`} />
         {/* тень под нижней губой (ментальная складка) */}

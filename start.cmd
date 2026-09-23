@@ -16,12 +16,18 @@ if errorlevel 1 goto fail
 
 if not exist node_modules goto install
 
+rem Собранной версии нет - собираем. Дальше запуск идёт мгновенно.
+if not exist ".next\BUILD_ID" goto build
+
 :run
+rem Ключ AI-провайдера: при первом запуске спросит его один раз, дальше молчит.
+call npm run -s setup:key
+echo.
 echo   Поднимаю сервер. Это окно не закрывайте: пока оно открыто, тренажёр работает.
 echo   Браузер откроется сам, как только сервер будет готов.
 echo.
 start "" /b cmd /c "node scripts\open-when-ready.mjs >nul 2>&1"
-call npm run dev
+call npm start
 echo.
 echo   Сервер остановлен. Чтобы запустить снова - откройте этот файл ещё раз.
 echo.
@@ -33,6 +39,15 @@ echo   Первый запуск: устанавливаю зависимост�
 echo.
 call npm install
 if errorlevel 1 goto install_failed
+echo.
+goto build
+
+:build
+echo   Собираю приложение. Это разовая операция примерно на минуту;
+echo   при следующих запусках её не будет.
+echo.
+call npm run build
+if errorlevel 1 goto build_failed
 echo.
 goto run
 
@@ -81,6 +96,14 @@ exit /b 1
 echo.
 echo   Не удалось установить зависимости. Проверьте подключение к интернету
 echo   и запустите start.cmd заново.
+echo.
+pause
+exit /b 1
+
+:build_failed
+echo.
+echo   Сборка не удалась. Подробности выше.
+echo   Если обновляли код - запустите rebuild.cmd и попробуйте снова.
 echo.
 pause
 exit /b 1

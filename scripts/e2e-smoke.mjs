@@ -5,6 +5,10 @@
    ============================================================ */
 
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:3000';
+const ORIGIN = new URL(BASE).origin;
+const USERNAME = process.env.E2E_USERNAME;
+const PASSWORD = process.env.E2E_PASSWORD;
+let cookie = '';
 
 let failures = 0;
 function check(name, ok, detail = '') {
@@ -13,7 +17,11 @@ function check(name, ok, detail = '') {
 }
 
 async function jfetch(path, init) {
-  const res = await fetch(`${BASE}${path}`, init);
+  const method = init?.method ?? 'GET';
+  const headers = new Headers(init?.headers);
+  if (!['GET', 'HEAD'].includes(method)) headers.set('Origin', ORIGIN);
+  if (cookie) headers.set('Cookie', cookie);
+  const res = await fetch(`${BASE}${path}`, { ...init, headers });
   const type = res.headers.get('content-type') ?? '';
   let body = null;
   if (res.status !== 204) {
@@ -34,6 +42,17 @@ function doctorAnswers(n) {
 async function main() {
   console.log(`Vera Practice e2e · ${BASE}\n`);
 
+  if (USERNAME || PASSWORD) {
+    if (!USERNAME || !PASSWORD) throw new Error('Set both E2E_USERNAME and E2E_PASSWORD');
+    const login = await jfetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: USERNAME, password: PASSWORD }) });
+    check('POST /api/auth/login → 200', login.res.status === 200, login.res.status);
+    cookie = login.res.headers.get('set-cookie')?.split(';', 1)[0] ?? '';
+    check('login cookie received', Boolean(cookie));
+  } else {
+    throw new Error('Authentication required: set E2E_USERNAME and E2E_PASSWORD');
+  }
+
   // 1. Создание сцены
   const start = await jfetch('/api/sessions', {
     method: 'POST',
@@ -41,6 +60,7 @@ async function main() {
     body: JSON.stringify({ domain: 'outpatient' }),
   });
   check('POST /api/sessions → 200', start.res.status === 200, start.res.status);
+  if (start.res.status !== 200) throw new Error(`Session creation failed (${start.res.status})`);
   const { session } = start.body;
   check('сцена: есть opener с audioUrl', Boolean(session?.opener?.text && session.opener.audioUrl));
   check('сцена: ожидается обменов', session.exchangesLimit >= 1 && session.exchangesLimit <= 4, `limit=${session.exchangesLimit}`);
@@ -85,13 +105,15 @@ async function main() {
   const evalSecs = ((Date.now() - t1) / 1000).toFixed(1);
   check('POST evaluate → 200', ev.res.status === 200, `за ${evalSecs}с`);
   const e = ev.body?.evaluation ?? ev.body;
-  check('критерии 5 шт со шкалами', e?.criteria?.length === 5, `${e?.criteria?.length} критериев`);
+  check('критерии со шкалами', e?.criteria?.length >= 4, `${e?.criteria?.length} критериев`);
   const sumMax = e?.criteria?.reduce((s, c) => s + c.maxScore, 0);
   const sumScored = e?.criteria?.reduce((s, c) => s + c.score, 0);
   check('баллы в пределах шкал', e?.totalScore === sumScored && e?.maxScore === sumMax, `${e?.totalScore}/${e?.maxScore}`);
-  check('у критериев есть цитаты и объяснения', e?.criteria?.every((c) => c.evidenceQuote && c.explanation));
+  check('у критериев есть цитаты и объяснения', e?.criteria?.every((c) => (c.score === 0 || c.evidenceQuote) && c.explanation));
   check('есть общий вывод', Boolean(e?.overallSummary?.length > 40), `${e?.overallSummary?.length} симв.`);
   console.log(`   итог: ${e?.totalScore}/${e?.maxScore} · ${e?.model}`);
+  const evAgain = await jfetch(`/api/sessions/${sid}/evaluate`, { method: 'POST' });
+  check('повторная оценка идемпотентна', evAgain.res.status === 200 && evAgain.body?.evaluation?.evaluationId === e?.evaluationId);
 
   // 5. Resume показывает оценку
   const rs = await jfetch(`/api/sessions/${sid}`);

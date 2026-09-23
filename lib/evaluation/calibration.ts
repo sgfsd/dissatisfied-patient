@@ -27,3 +27,19 @@ export const TONE_RULE = `
 Если критерий не выполнен — так и напиши, покажи, чего конкретно не хватило и
 что именно сказать вместо этого. Не растягивай: 1–2 предложения на критерий.
 Не хвали за то, чего не было. Точность важнее мягкости.`;
+
+import { domainByKey, domainByRubricId } from '../domains';
+
+export function calibrationForScenario(domainKey?: string, rubricId?: string): string {
+  const domain = domainByRubricId(rubricId) ?? domainByKey(domainKey);
+  if (!domain) return CALIBRATION_BLOCK;
+  return [
+    `КАЛИБРОВКА ДОМЕНА «${domain.card.title}» (${domain.card.framework}):`,
+    ...domain.calibration.map((item, i) => [
+      `ЭТАЛОН ${i + 1}: ${item.title}`,
+      `Собеседник: «${item.patient}»`,
+      `Ответ специалиста: «${item.clinician}»`,
+      `Оценка: ${item.assessment}`,
+    ].join('\n')),
+  ].join('\n\n');
+}

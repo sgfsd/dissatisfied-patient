@@ -13,7 +13,8 @@ export class ApiError extends Error {
 const FRIENDLY: Record<string, string> = {
   bad_request: 'Некорректный запрос',
   not_found: 'Не найдено',
-  provider_unreachable: 'Сервис озвучки недоступен — проверьте сеть и попробуйте ещё раз',
+  network: 'Нет связи с сервером тренажёра — проверьте сеть и попробуйте ещё раз',
+  provider_unreachable: 'AI-сервис недоступен — попробуйте ещё раз через минуту',
   timeout: 'Сервис отвечает слишком долго — попробуйте ещё раз',
   rate_limited: 'Сервис перегружен — подождите минуту и повторите',
   invalid_json: 'Модель вернула некорректный ответ — попробуйте ещё раз',
@@ -27,21 +28,51 @@ export function friendlyError(e: unknown): string {
   return FRIENDLY.unknown;
 }
 
+/** Разобрать тело ошибки. Основной формат API — { error: { code, message } }. */
+function parseError(body: unknown): { code?: string; message?: string } {
+  const error = (body as { error?: unknown; code?: unknown } | null)?.error;
+  if (error && typeof error === 'object') {
+    const { code, message } = error as { code?: unknown; message?: unknown };
+    return {
+      code: typeof code === 'string' ? code : undefined,
+      message: typeof message === 'string' ? message : undefined,
+    };
+  }
+  // Запасной вариант — плоский { error: "текст", code }.
+  const flat = body as { code?: unknown } | null;
+  return {
+    code: typeof flat?.code === 'string' ? flat.code : undefined,
+    message: typeof error === 'string' ? error : undefined,
+  };
+}
+
+/** Типизированный fetch к API тренажёра: бросает ApiError с кодом и готовым текстом. */
 export async function api<T>(url: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
     res = await fetch(url, init);
   } catch {
-    throw new ApiError('provider_unreachable', FRIENDLY.provider_unreachable, 0);
+    throw new ApiError('network', FRIENDLY.network, 0);
   }
   let body: unknown = null;
   try { body = await res.json(); } catch { /* пустое тело */ }
   if (!res.ok) {
-    const code = (body as { error?: { code?: string; message?: string } })?.error?.code ?? 'unknown';
-    const message = (body as { error?: { message?: string } })?.error?.message ?? FRIENDLY[code] ?? FRIENDLY.unknown;
-    throw new ApiError(code, message, res.status);
+    const parsed = parseError(body);
+    const code = parsed.code ?? 'unknown';
+    throw new ApiError(code, parsed.message ?? FRIENDLY[code] ?? FRIENDLY.unknown, res.status);
   }
   return body as T;
+}
+
+/**
+ * Случайный ключ идемпотентности. crypto.randomUUID есть только в безопасном
+ * контексте (HTTPS или localhost), а на кафедре тренажёр открывают по
+ * http://<ip-сервера> — там работает лишь crypto.getRandomValues.
+ */
+export function randomKey(prefix: string): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return `${prefix}_${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
 export function formatDateTime(ts: number): string {

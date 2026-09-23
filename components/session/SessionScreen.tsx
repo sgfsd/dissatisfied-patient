@@ -8,10 +8,18 @@ import Link from 'next/link';
 import { AvatarRig, type AvatarHandle } from '@/components/avatar/AvatarRig';
 import { buildWordTimeline } from '@/components/avatar/visemes';
 import { personaById } from '@/lib/personas';
-import { PATIENT_EMOTION_LABELS, type EvaluationDTO, type MessageDTO, type SessionPublicDTO } from '@/lib/types';
-import { api, friendlyError } from '@/components/shared/utils';
-import { isRecordingSupported, useVoiceRecorder } from './useVoiceRecorder';
+import {
+  PATIENT_EMOTION_LABELS,
+  type EvalReadyOutcome,
+  type EvaluationDTO,
+  type MessageDTO,
+  type PatientTurnOutcome,
+  type SessionPublicDTO,
+} from '@/lib/types';
+import { api, friendlyError, plural, randomKey } from '@/components/shared/utils';
+import { recordingBlockedReason, useVoiceRecorder } from './useVoiceRecorder';
 import ResultsScreen from '@/components/results/ResultsScreen';
+import { useFullscreen } from '@/components/shared/useFullscreen';
 import './session.css';
 
 type ClientSession = Omit<SessionPublicDTO, 'status'> & { status: string };
@@ -20,9 +28,10 @@ interface ResumeData {
   messages: MessageDTO[];
   evaluation: EvaluationDTO | null;
 }
-interface TurnPayload { outcome: { kind: 'patient'; text: string; emotion: MessageDTO['emotion']; audioUrl: string; isFinalPatientLine: boolean } | { kind: 'eval_ready' } }
+interface TurnPayload { outcome: PatientTurnOutcome | EvalReadyOutcome }
 
-type Phase = 'loading' | 'error' | 'dialogue' | 'eval' | 'report';
+/** closed — сессия прервана (истекло время экзамена или брошена надолго). */
+type Phase = 'loading' | 'error' | 'closed' | 'dialogue' | 'eval' | 'report';
 type Sub = 'patient' | 'doctor' | 'busy' | 'rec' | 'stt';
 
 const fmtTime = (s: number) => `${String(Math.floor(s / 60)).padStart(1, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -36,6 +45,16 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
   const [phase, setPhase] = useState<Phase>('loading');
   const [sub, setSub] = useState<Sub>('doctor');
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const { active: fullscreen, toggle: toggleFullscreen, supported: fullscreenSupported } = useFullscreen();
+  // Секундный тик нужен только экзаменационным часам — без них экран не перерисовываем.
+  const deadlineAt = data?.session.deadlineAt ?? null;
+  useEffect(() => {
+    if (!deadlineAt) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [deadlineAt]);
 
   // ввод врача
   const [draft, setDraft] = useState('');
@@ -44,6 +63,15 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
   const inputModeRef = useRef<'voice' | 'typed'>('voice');
   draftRef.current = draft;
   inputModeRef.current = mode;
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem(`vera-draft:${sessionId}`);
+    if (saved) setDraft(saved);
+  }, [sessionId]);
+  useEffect(() => {
+    const key = `vera-draft:${sessionId}`;
+    if (draft) window.sessionStorage.setItem(key, draft);
+    else window.sessionStorage.removeItem(key);
+  }, [draft, sessionId]);
 
   // живая реплика пациента (субтитры-«караоке»)
   const [speech, setSpeech] = useState<{ text: string; active: boolean } | null>(null);
@@ -55,7 +83,11 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
   const mountedRef = useRef(true);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
 
-  const rec = useVoiceRecorder();
+  const rec = useVoiceRecorder({
+    maxSeconds: data?.session.recordMaxSeconds,
+    // Запись упёрлась в лимит — сразу отправляем её на распознавание.
+    onAutoStop: (blob) => { void transcribeBlob(blob); },
+  });
 
   const doctorCount = useMemo(() => data?.messages.filter((m) => m.speaker === 'doctor').length ?? 0, [data]);
   const limit = data?.session.exchangesLimit ?? 0;
@@ -75,6 +107,7 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
       const s = r.session.status;
       if (s === 'done' && r.evaluation) { setPhase('report'); return; }
       if (s === 'evaluating') { setPhase('eval'); void runEvaluation(); return; }
+      if (s === 'aborted') { setPhase('closed'); return; }
       setPhase('dialogue');
       const last = r.messages[r.messages.length - 1];
       if (last && last.speaker === 'patient' && last.emotion) setAvatarEmotion(last.emotion);
@@ -114,7 +147,8 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
     setWordIdx(-1);
     setSpeech({ text: m.text, active: true });
     try {
-      await avatarRef.current?.speak(m.audioUrl, m.text);
+      if (avatarRef.current) await avatarRef.current.speak(m.audioUrl, m.text);
+      else await new Promise<void>((resolve) => { const audio = new Audio(m.audioUrl!); audio.onended = () => resolve(); audio.onerror = () => resolve(); void audio.play().catch(() => resolve()); });
     } catch {
       // файл озвучки мог исчезнуть между загрузкой сцены и кликом —
       // тихо выходим, состояние сбрасывает finally ниже
@@ -162,10 +196,15 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
   }
 
   /* ---------- отправка ответа врача ---------- */
+  /* Синхронный флаг: два Enter подряд успевают до перерисовки, и проверка
+     одного лишь состояния sub пропустила бы второй запрос. */
+  const sendingRef = useRef(false);
   const sendTurn = useCallback(async (text: string) => {
     const clean = text.trim();
-    if (!clean || sub !== 'doctor') return;
+    if (!clean || sub !== 'doctor' || sendingRef.current) return;
+    sendingRef.current = true;
     setError(null);
+    setNotice(null);
     setSub('busy');
     try {
       const source = inputModeRef.current === 'voice' && text === recognizedRef.current ? 'stt' : 'typed';
@@ -184,6 +223,7 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
       };
       setData((d) => d ? { ...d, messages: [...d.messages, doctorMsg] } : d);
       setDraft('');
+      window.sessionStorage.removeItem(`vera-draft:${sessionId}`);
       setMode('voice');
       recognizedRef.current = null;
 
@@ -198,12 +238,22 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
         idx: 9001 + doctorCount, createdAt: now + 1,
       };
       setData((d) => (d ? { ...d, messages: [...d.messages, patientMsg] } : d));
-      await playMessage(patientMsg);
+      if (patientMsg.audioUrl) {
+        await playMessage(patientMsg);
+      } else {
+        // Озвучка не удалась — реплика уже в ленте текстом, ход возвращается врачу.
+        setAvatarEmotion(outcome.emotion);
+        setNotice('Озвучка сейчас недоступна — реплика собеседника показана текстом.');
+        setSub('doctor');
+        scrollFeed();
+      }
     } catch (e) {
       if (mountedRef.current) {
         setSub('doctor');
         setError(friendlyError(e));
       }
+    } finally {
+      sendingRef.current = false;
     }
   }, [sessionId, sub, doctorCount, playMessage, runEvaluation]);
 
@@ -220,13 +270,20 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
     setSub(ok ? 'rec' : 'doctor');
   }
   async function onRecordStop() {
-    const blob = await rec.stop();
+    await transcribeBlob(await rec.stop());
+  }
+  /** Запись → текст в поле ответа. Вызывается и по кнопке «стоп», и по лимиту времени. */
+  async function transcribeBlob(blob: Blob | null) {
+    if (!mountedRef.current) return;
     if (!blob) { setSub('doctor'); return; }
     setSub('stt');
     try {
       const { text } = await api<{ text: string }>('/api/stt', {
         method: 'POST',
-        headers: { 'Content-Type': blob.type || 'audio/webm' },
+        headers: {
+          'Content-Type': blob.type || 'audio/webm',
+          'Idempotency-Key': randomKey('stt'),
+        },
         body: blob,
       });
       if (!mountedRef.current) return;
@@ -242,14 +299,6 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
     }
   }
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
-
-  useEffect(() => {
-    if (sub === 'doctor') {
-      // авто-стоп записи по таймауту (защита в хуке)
-      if (rec.state === 'recording' && rec.seconds >= 44) void onRecordStop();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rec.seconds, rec.state, sub]);
 
   const segments = useMemo(() => {
     if (!speech) return null;
@@ -289,6 +338,24 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
     );
   }
 
+  if (phase === 'closed') {
+    const exam = data?.session.mode === 'exam';
+    return (
+      <div className="vp-scene-error vp-in">
+        <p className="eyebrow">{exam ? 'Экзамен' : 'Сцена'}</p>
+        <h1>Сессия закрыта</h1>
+        <p>
+          {exam
+            ? 'Время экзамена истекло, продолжить разговор нельзя. Сказанное сохранено и доступно преподавателю.'
+            : 'Эту сцену бросили надолго, поэтому она закрыта. Реплики сохранены — начните новую сцену по тому же кейсу.'}
+        </p>
+        <div className="vp-scene-error-actions">
+          <Link className="vp-btn vp-btn--dark" href="/">В приёмную</Link>
+        </div>
+      </div>
+    );
+  }
+
   if (phase === 'report' && data?.evaluation) {
     return <ResultsScreen session={data.session} messages={data.messages} evaluation={data.evaluation} />;
   }
@@ -297,6 +364,16 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
 
   const emotionLabel = PATIENT_EMOTION_LABELS[avatarEmotion] ?? 'спокойствие';
   const finalTurn = doctorCount >= limit - 1;
+  const phone = data.session.channel === 'voice-only';
+  const remaining = data.session.deadlineAt ? Math.max(0, Math.ceil((data.session.deadlineAt - now) / 1000)) : null;
+  // Время экзамена вышло: сервер ход уже не примет, поэтому и поле ввода закрываем.
+  const timeUp = remaining === 0;
+  const answerable = canAnswer && !timeUp;
+  const voiceBlocked = recordingBlockedReason();
+  const stages = data.session.stages ?? [];
+  const stageNow = stages.length
+    ? Math.min(stages.length - 1, data.session.stageIndex ?? Math.floor((doctorCount * stages.length) / Math.max(1, limit)))
+    : 0;
 
   return (
     <div className="vp-scene">
@@ -308,22 +385,52 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
         <div className="vp-scene-title">
           <span className="vp-scene-cat">{data.session.domain} · {data.session.category}</span>
           <span className="vp-scene-persona">
-            {data.session.patientFirst}, {data.session.patientAge} · эмоция «{emotionLabel}»
+            {phone ? `Звонит ${data.session.patientFirst} · телефонная линия` : `${data.session.patientFirst}, ${data.session.patientAge} · эмоция «${emotionLabel}»`}
           </span>
         </div>
         <div className="vp-scene-turns" aria-label="Прогресс диалога">
           {Array.from({ length: limit }, (_, i) => (
             <i key={i} className={`vp-dot${i < doctorCount ? ' is-done' : ''}`} />
           ))}
-          <span>{doctorCount}/{limit} {doctorCount === 1 ? 'ответ' : 'ответов'}</span>
+          <span>ответов: {doctorCount} из {limit}</span>
         </div>
+        {remaining !== null && (
+          <span className={`vp-exam-clock${remaining <= 120 ? ' is-urgent' : ''}`} role="timer">
+            Экзамен · {fmtTime(remaining)}{remaining === 0 ? ' · время истекло' : ''}
+          </span>
+        )}
+        {fullscreenSupported && (
+          <button
+            type="button"
+            className="vp-fullscreen"
+            onClick={() => void toggleFullscreen()}
+            aria-label={fullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'}
+            title={fullscreen ? 'Выйти из полноэкранного режима' : 'На весь экран'}
+          >
+            {fullscreen ? '⤡' : '⤢'}
+          </button>
+        )}
       </div>
+
+      {stages.length > 1 && (
+        <nav className="vp-stage-rail" aria-label="Этапы разговора">
+          {stages.map((stage, i) => (
+            <span
+              key={stage.id}
+              className={i === stageNow ? 'is-current' : i < stageNow ? 'is-done' : undefined}
+              title={stage.goal}
+            >
+              {String(i + 1).padStart(2, '0')} · {stage.title}
+            </span>
+          ))}
+        </nav>
+      )}
 
       <div className="vp-scene-main">
         {/* ——— сцена с пациентом ——— */}
         <div className="vp-stage-col">
-          <div className="vp-stage">
-            <div className="vp-avatar-wrap vp-avatar-wrap--scene">
+          <div className={`vp-stage${phone ? ' vp-stage--phone' : ''}`}>
+            {phone ? <div className="vp-phone" role="status"><div className="vp-phone-top">VERA / ТЕЛЕФОННАЯ ЛИНИЯ <span>● НА СВЯЗИ</span></div><div className="vp-phone-symbol" aria-hidden="true">☎</div><p className="vp-phone-caption">Входящий вызов</p><h2>{data.session.patientFirst}</h2><p className="vp-phone-detail">{data.session.category}</p><div className={`vp-phone-wave${sub === 'patient' || sub === 'rec' ? ' is-speaking' : ''}`} aria-hidden="true">{Array.from({ length: 25 }, (_, i) => <i key={i} style={{ height: `${14 + (i * 17 % 54)}px` }} />)}</div><p className="vp-phone-state">{sub === 'patient' ? 'На линии говорит пациент' : sub === 'rec' ? 'Микрофон включён · вас слышно' : sub === 'busy' ? 'Ожидаем ответа на линии' : sub === 'stt' ? 'Распознаём ответ' : 'Линия открыта · слушает вас'}</p></div> : <div className="vp-avatar-wrap vp-avatar-wrap--scene">
               <AvatarRig
                 ref={avatarRef}
                 persona={persona}
@@ -334,10 +441,10 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
                 className="vp-avatar"
                 onSpeechProgress={onSpeechProgress}
               />
-            </div>
+            </div>}
 
             {/* субтитры текущей реплики (подсветка слова — «караоке») */}
-            {speech && segments && (
+            {!phone && speech && segments && (
               <div className="vp-subtitle vp-in" aria-live="polite">
                 <p>
                   {segments.map((s, i) => (
@@ -348,14 +455,14 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
             )}
 
             {/* статус-строка на сцене */}
-            <div className="vp-stage-status">
+            {!phone && <div className="vp-stage-status">
               {sub === 'patient' && <span className="vp-typing"><i /><i /><i /> пациент говорит</span>}
               {sub === 'busy' && <span className="vp-typing"><i /><i /><i /> пациент обдумывает ответ</span>}
               {sub === 'doctor' && !speech && (
                 <span className="vp-status-soft">слушает вас…</span>
               )}
               {sub === 'stt' && <span className="vp-typing"><i /><i /><i /> распознаём вашу речь</span>}
-            </div>
+            </div>}
 
             {/* повтор последней реплики — чип в углу сцены, чтобы сцена не меняла высоту */}
             {sub === 'doctor' && lastPatientMsg && lastPatientMsg.audioUrl && (
@@ -406,7 +513,7 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
                   <button type="button" className="vp-rec-stop" onClick={() => void onRecordStop()} aria-label="Закончить запись">■</button>
                   <button type="button" className="vp-btn vp-btn--ghost vp-btn--xs" onClick={() => { rec.cancel(); setSub('doctor'); }}>Отмена</button>
                 </div>
-                <p className="vp-rec-caption">Говорите так, как ответили бы на приёме. Запись остановится сама через 45 секунд.</p>
+                <p className="vp-rec-caption">Говорите так, как ответили бы на приёме. Запись остановится сама через {rec.maxSeconds} {plural(rec.maxSeconds, 'секунду', 'секунды', 'секунд')}.</p>
               </div>
             )}
 
@@ -427,19 +534,22 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
                   value={draft}
                   onChange={(e) => { setDraft(e.target.value); setMode('typed'); }}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (draft.trim()) sendDraft(); }
+                    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (draft.trim() && answerable) sendDraft(); }
                   }}
+                  disabled={timeUp}
                   aria-label="Ответ врача"
                 />
+                {timeUp && <p className="vp-error-inline" role="alert">Время экзамена истекло — ответы больше не принимаются.</p>}
                 {error && <p className="vp-error-inline" role="alert">{error}</p>}
+                {notice && !error && <p className="vp-keyhint" role="status">{notice}</p>}
                 <div className="vp-input-row">
                   <button
                     type="button"
                     className="vp-mic"
                     onClick={onRecordStart}
-                    disabled={!isRecordingSupported() || !canAnswer}
+                    disabled={Boolean(voiceBlocked) || !answerable}
                     aria-label="Записать голосом"
-                    title="Ответить голосом"
+                    title={voiceBlocked ?? 'Ответить голосом'}
                   >
                     <MicIcon />
                     <span>Голосом</span>
@@ -447,13 +557,13 @@ export default function SessionScreen({ sessionId }: { sessionId: string }) {
                   <button
                     type="button"
                     className="vp-btn vp-btn--dark"
-                    disabled={!draft.trim() || !canAnswer}
+                    disabled={!draft.trim() || !answerable}
                     onClick={sendDraft}
                   >
                     Ответить
                   </button>
                 </div>
-                <p className="vp-keyhint">Enter — отправить · Shift+Enter — новая строка</p>
+                <p className="vp-keyhint">{voiceBlocked ?? 'Enter — отправить · Shift+Enter — новая строка'}</p>
               </div>
             )}
 

@@ -1,0 +1,257 @@
+/* ============================================================
+   Кабинет преподавателя: агрегаты, ростер, экзамены, транскрипты.
+   ============================================================ */
+
+.vp-teacher-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.vp-teacher-actions select { width: auto; min-width: 180px; }
+.vp-teacher-actions input,
+.vp-teacher-form input,
+.vp-teacher-form select {
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: white;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+}
+
+/* ---------- Плитки ---------- */
+
+.vp-tiles {
+  margin-top: 28px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+.vp-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 18px;
+}
+.vp-tile b { display: block; font: 500 30px/1 var(--serif); color: var(--ink); }
+.vp-tile span { display: block; margin-top: 6px; font-size: 12.5px; color: var(--muted); line-height: 1.35; }
+.vp-tile.is-ok b { color: var(--ok); }
+.vp-tile.is-mid b { color: var(--gold); }
+.vp-tile.is-low b { color: var(--danger); }
+
+/* ---------- Сетка карточек ---------- */
+
+.vp-span-2 { grid-column: span 2; }
+
+/* ---------- Критерии группы ---------- */
+
+.vp-crit-stats { display: flex; flex-direction: column; gap: 14px; }
+.vp-crit-stat-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.vp-crit-stat-name { font: 600 14px var(--sans); }
+.vp-crit-stat-num { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.vp-crit-stat-bar {
+  display: block;
+  margin: 6px 0 4px;
+  height: 8px;
+  border-radius: 99px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.vp-crit-stat-bar i { display: block; height: 100%; border-radius: 99px; transition: width .4s ease; }
+.vp-crit-stat-bar i.is-ok { background: var(--ok); }
+.vp-crit-stat-bar i.is-mid { background: var(--gold); }
+.vp-crit-stat-bar i.is-low { background: var(--coral); }
+.vp-crit-stat-meta { font-size: 12px; color: var(--faint); }
+
+.vp-domain-stats { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 8px; }
+.vp-domain-stat {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  background: var(--paper-2);
+  border-radius: 999px;
+  padding: 7px 13px;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+.vp-domain-stat b { font-weight: 600; }
+.vp-domain-stat i { font-style: normal; color: var(--faint); font-size: 11.5px; }
+
+/* ---------- Ростер ---------- */
+
+.vp-roster-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 210px; }
+.vp-roster-weak { color: var(--faint); font-size: 11.5px; }
+/* flex-shrink: 0 не давал панели сжиматься, поэтому перенос внутри неё
+   никогда не срабатывал и она вылезала за край колонки. */
+.vp-roster-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.vp-roster-controls .vp-btn--xs { padding: 7px 11px; font-size: 12px; }
+.vp-roster-controls input {
+  width: 74px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  font: inherit;
+  font-size: 13px;
+  text-align: right;
+}
+
+.vp-teacher-form {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line-soft);
+  display: grid;
+  gap: 9px;
+}
+.vp-form-label {
+  font: 700 11px var(--sans);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vp-form-hint { font-size: 11.5px; color: var(--faint); line-height: 1.45; }
+.vp-teacher-form button { justify-self: start; }
+
+/* ---------- Журнал сессий ---------- */
+
+.vp-session-table { display: flex; flex-direction: column; }
+.vp-session-line {
+  display: grid;
+  grid-template-columns: 130px minmax(90px, 1fr) minmax(0, 2fr) auto 72px;
+  gap: 12px;
+  align-items: center;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid var(--line-soft);
+  background: none;
+  padding: 11px 4px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 8px;
+}
+.vp-session-line:hover { background: var(--paper-2); }
+.vp-session-when { color: var(--faint); font-size: 12px; }
+.vp-session-who { font-weight: 600; }
+.vp-session-what { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-session-tags { display: flex; gap: 5px; }
+.vp-session-score { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* ---------- Модальный транскрипт ---------- */
+
+.vp-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgb(21 49 45 / 0.42);
+  backdrop-filter: blur(3px);
+}
+.vp-modal-card {
+  width: min(960px, 100%);
+  max-height: 88vh;
+  overflow: auto;
+  background: var(--paper);
+  border-radius: 24px;
+  padding: clamp(20px, 3vw, 30px);
+  box-shadow: var(--shadow-lg);
+}
+.vp-modal-card header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.vp-modal-card h2 { font-size: 23px; margin-top: 6px; }
+.vp-modal-meta { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
+.vp-modal-close {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  width: 34px;
+  height: 34px;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+}
+.vp-modal-body {
+  margin-top: 20px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 18px;
+}
+.vp-modal-transcript {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 58vh;
+  overflow-y: auto;
+}
+.vp-modal-transcript p { font-size: 13.5px; line-height: 1.5; }
+.vp-modal-transcript .is-doc {
+  align-self: flex-end;
+  max-width: 88%;
+  background: var(--ink);
+  color: #f4efe4;
+  border-radius: 12px;
+  padding: 7px 12px;
+}
+.vp-modal-transcript .is-pat { max-width: 92%; }
+.vp-modal-criteria { display: flex; flex-direction: column; gap: 10px; max-height: 58vh; overflow-y: auto; }
+.vp-modal-criterion {
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.vp-modal-criterion span { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.vp-modal-criterion i { font-style: normal; font-variant-numeric: tabular-nums; color: var(--muted); }
+.vp-modal-criterion q { font-size: 12.5px; color: var(--ink-2); font-style: italic; }
+.vp-modal-criterion small { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.vp-modal-summary {
+  background: var(--paper-2);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .vp-span-2 { grid-column: span 1; }
+  .vp-modal-body { grid-template-columns: 1fr; }
+  .vp-session-line { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .vp-session-when, .vp-session-what { grid-column: 1 / -1; }
+}
+
+.vp-provider-state { font-size: 13.5px; color: var(--ink-2); line-height: 1.5; }
+.vp-provider-state small { display: block; margin-top: 4px; font-size: 12px; color: var(--faint); word-break: break-all; }
+
+/* ============================================================
+   Узкие экраны. Строка студента держала имя и четыре кнопки в одну
+   линию и вылезала за край: на 375px панель управления занимала 359px
+   при ширине контента 343px. Разводим на две строки.
+   ============================================================ */
+
+@media (max-width: 620px) {
+  .vp-roster-main { width: 100%; }
+  .vp-roster-controls { width: 100%; justify-content: flex-start; }
+  .vp-roster-controls input { width: 88px; }
+
+  .vp-teacher-head { align-items: stretch; }
+  .vp-teacher-actions { width: 100%; }
+  .vp-teacher-actions select,
+  .vp-teacher-actions input { flex: 1 1 100%; min-width: 0; }
+
+  .vp-modal { padding: 10px; }
+  .vp-modal-card { border-radius: 18px; max-height: 94vh; }
+}

@@ -46,24 +46,9 @@
 .vp-score-donut-in span { color: var(--muted); font-size: 12.5px; margin-top: 3px; }
 
 /* алерты */
-.vp-alert {
-  border-radius: 16px;
-  padding: 13px 18px;
-  font-size: 14px;
-  line-height: 1.55;
-  margin-top: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.vp-alert p { margin: 0; }
-.vp-alert--danger { background: #f9e4df; border: 1px solid #eec6ba; color: #7c2f20; }
-.vp-alert--warn { background: #f7edcf; border: 1px solid #e6d6a0; color: #6b5513; }
 
 /* критерии */
 .vp-crit { margin-top: 26px; }
-.vp-sec-head h2 { font-size: 24px; }
-.vp-sec-head p { color: var(--muted); font-size: 13.5px; margin-top: 4px; }
 
 .vp-crit-list {
   margin-top: 16px;
@@ -175,4 +160,104 @@
   font-size: 12px;
   border-top: 1px solid var(--line-soft);
   padding-top: 16px;
+}
+
+/* ---------- Флаги и покрытие опроса ---------- */
+
+.vp-alert-note { display: block; margin-top: 6px; font-size: 12.5px; opacity: 0.85; }
+.vp-crit-evidence--empty { color: var(--faint); font-style: normal; }
+
+.vp-coverage {
+  margin-top: 30px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-l);
+  padding: clamp(18px, 3vw, 28px);
+}
+
+.vp-cov-top {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+.vp-cov-score {
+  background: var(--paper-2);
+  border-radius: 18px;
+  padding: 16px;
+  text-align: center;
+}
+.vp-cov-score b { display: block; font: 500 34px/1 var(--serif); color: var(--ink); }
+.vp-cov-score b i { font-size: 18px; font-style: normal; color: var(--faint); }
+.vp-cov-score span { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.vp-cov-score.is-high b { color: var(--ok); }
+.vp-cov-score.is-low b { color: var(--danger); }
+
+.vp-cov-groups { display: flex; flex-direction: column; gap: 8px; }
+.vp-cov-group {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 44px;
+  gap: 10px;
+  align-items: center;
+  font-size: 13px;
+}
+.vp-cov-group-name { color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vp-cov-group-num { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+.vp-cov-bar { display: block; height: 7px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+.vp-cov-bar i { display: block; height: 100%; border-radius: 99px; background: var(--sage); transition: width .4s ease; }
+.vp-cov-bar i.is-high { background: var(--ok); }
+.vp-cov-bar i.is-mid { background: var(--gold); }
+.vp-cov-bar i.is-low { background: var(--coral); }
+
+.vp-cov-critical {
+  margin-top: 18px;
+  padding: 12px 15px;
+  background: #f9e4df;
+  border: 1px solid #eec6ba;
+  border-radius: 12px;
+  font-size: 13px;
+  color: #7c2f20;
+  line-height: 1.5;
+}
+
+.vp-cov-tabs { margin-top: 20px; display: flex; gap: 8px; }
+.vp-cov-tabs button {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  border-radius: 999px;
+  padding: 7px 15px;
+  font: 600 13px var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.vp-cov-tabs button.is-active { border-color: var(--ink); background: var(--ink); color: #f4efe4; }
+
+.vp-cov-list { margin: 16px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.vp-cov-list li {
+  border-top: 1px solid var(--line-soft);
+  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 13.5px;
+}
+.vp-cov-list li.is-critical .vp-cov-item-label { color: var(--coral-ink); font-weight: 600; }
+.vp-cov-item-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vp-cov-item-quote { color: var(--muted); font-size: 12.5px; font-style: italic; }
+.vp-cov-chip {
+  font: 700 10px var(--sans);
+  font-style: normal;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7c2f20;
+  background: #f4dcd2;
+  border-radius: 999px;
+  padding: 2px 7px;
+}
+
+@media (max-width: 680px) {
+  .vp-cov-top { grid-template-columns: 1fr; }
+  .vp-cov-group { grid-template-columns: minmax(0, 1fr) 60px 42px; }
 }

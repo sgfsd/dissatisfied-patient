@@ -1,13 +1,18 @@
 'use client';
-/* Экран разбора: критерии со шкалами, цитаты-доказательства, флаги,
-   итоговая рекомендация и переходы к следующим сценам. */
+/* Экран разбора: критерии со шкалами, цитаты-доказательства, покрытие опроса,
+   флаг безопасности, итоговая рекомендация и переходы к следующим сценам. */
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppHeader from '@/components/shared/AppHeader';
-import { CATEGORY_SLUGS, type EvaluationDTO, type MessageDTO, type SessionPublicDTO } from '@/lib/types';
-import { api, friendlyError, formatShortDate } from '@/components/shared/utils';
-import type { CriterionResult } from '@/lib/types';
+import type {
+  CoverageReport,
+  CriterionResult,
+  EvaluationDTO,
+  MessageDTO,
+  SessionPublicDTO,
+} from '@/lib/types';
+import { api, friendlyError, formatShortDate, plural } from '@/components/shared/utils';
 import './results.css';
 
 interface Props {
@@ -23,8 +28,8 @@ const toneOf = (score: number, max: number) => {
 
 function flagText(f: string): string {
   const map: Record<string, string> = {
-    prompt_injection: 'зафиксирована попытка повлиять на работу оценщика',
-    injection: 'зафиксирована попытка повлиять на работу оценщика',
+    prompt_injection: 'в ответе была попытка повлиять на работу оценщика — она исключена из оценки',
+    injection: 'в ответе была попытка повлиять на работу оценщика — она исключена из оценки',
     refusal: 'модель отказалась отвечать',
   };
   return map[f] ?? f;
@@ -38,16 +43,18 @@ export default function ResultsScreen({ session, messages, evaluation }: Props) 
   const pct = evaluation.maxScore > 0 ? Math.round((evaluation.totalScore / evaluation.maxScore) * 100) : 0;
   const verdict = pct >= 75 ? 'Сильная консультация' : pct >= 45 ? 'Уверенная середина' : 'Есть над чем работать';
   const docMsgs = useMemo(() => messages.filter((m) => m.speaker === 'doctor').length, [messages]);
+  const isExam = session.mode === 'exam';
 
   async function retrySame() {
     setBusy(true);
     setError(null);
     try {
-      const slug = CATEGORY_SLUGS[session.domain];
       const { session: next } = await api<{ session: { sessionId: string } }>('/api/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(slug ? { domain: slug, category: session.category } : {}),
+        body: JSON.stringify(
+          session.domainKey ? { domain: session.domainKey, caseId: session.caseId } : {},
+        ),
       });
       router.push(`/s/${next.sessionId}`);
     } catch (e) {
@@ -61,85 +68,229 @@ export default function ResultsScreen({ session, messages, evaluation }: Props) 
       <AppHeader />
 
       <main className="vp-shell">
-        {/* ——— шапка разбора ——— */}
         <header className="vp-report-head vp-in">
           <div className="vp-report-head-left">
-            <p className="eyebrow">Разбор сцены</p>
+            <p className="eyebrow">{isExam ? 'Результат экзамена' : 'Разбор сцены'}</p>
             <h1>{verdict}</h1>
             <p className="vp-report-meta">
               {session.domain} · {session.category}
               <span className="vp-meta-sep">·</span>
               {session.patientFirst}, {session.patientAge}
               <span className="vp-meta-sep">·</span>
-              {docMsgs} {docMsgs === 1 ? 'ответ' : 'ответов'} врача
+              {docMsgs} {plural(docMsgs, 'ответ', 'ответа', 'ответов')}
+              {session.format === 'long' && (
+                <>
+                  <span className="vp-meta-sep">·</span>полный приём
+                </>
+              )}
             </p>
           </div>
 
-          <div className={`vp-score-donut is-${toneOf(evaluation.totalScore, evaluation.maxScore)}`} style={{ ['--p' as string]: `${pct * 3.6}deg` }}>
+          <div
+            className={`vp-score-donut is-${toneOf(evaluation.totalScore, evaluation.maxScore)}`}
+            style={{ ['--p' as string]: `${pct * 3.6}deg` }}
+          >
             <div className="vp-score-donut-in">
-              <b>{evaluation.totalScore}<i>/{evaluation.maxScore}</i></b>
+              <b>
+                {evaluation.totalScore}
+                <i>/{evaluation.maxScore}</i>
+              </b>
               <span>{pct}%</span>
             </div>
           </div>
         </header>
 
-        {error && <p className="vp-error-inline" role="alert">{error}</p>}
+        {error && (
+          <p className="vp-error-inline" role="alert">
+            {error}
+          </p>
+        )}
 
-        {/* ——— алерты ——— */}
-        {evaluation.safetyFlag && (
+        {/* ——— клиническая безопасность: показывается всегда, в том числе на экзамене ——— */}
+        {evaluation.safetyFlag ? (
           <div className="vp-alert vp-alert--danger vp-in" role="alert">
-            <b>Безопасность пациента.</b> {evaluation.safetyFlag}
+            <b>Клиническая безопасность.</b> {evaluation.safetyFlag}
+            <span className="vp-alert-note">
+              Это отдельный сигнал: он не входит в коммуникативные баллы и разбирается как
+              клиническая ошибка.
+            </span>
+          </div>
+        ) : (
+          <div className="vp-alert vp-alert--ok vp-in" role="note">
+            <b>Клиническая безопасность.</b> Небезопасных советов и пропущенных экстренных
+            маршрутов не зафиксировано.
           </div>
         )}
+
         {evaluation.flags.length > 0 && (
           <div className="vp-alert vp-alert--warn vp-in" role="note">
-            {evaluation.flags.map((f) => <p key={f}>• {flagText(f)}</p>)}
+            {evaluation.flags.map((f) => (
+              <p key={f}>• {flagText(f)}</p>
+            ))}
           </div>
         )}
 
-        {/* ——— критерии ——— */}
-        <section className="vp-crit vp-in">
-          <div className="vp-sec-head">
-            <h2>Оценка по критериям</h2>
-            <p>Каждый критерий опирается на признанный стандарт коммуникации</p>
-          </div>
-          <div className="vp-crit-list">
-            {evaluation.criteria.map((c) => <CriterionCard key={c.name} c={c} />)}
-          </div>
-        </section>
+        {!isExam && evaluation.coverage && <CoveragePanel coverage={evaluation.coverage} />}
 
-        {/* ——— общий вывод ——— */}
-        <section className="vp-summary vp-in">
-          <p className="eyebrow">Общий вывод</p>
-          <p className="vp-summary-text">{evaluation.overallSummary}</p>
-        </section>
+        {!isExam && (
+          <section className="vp-crit vp-in">
+            <div className="vp-sec-head">
+              <h2>Оценка по критериям</h2>
+              <p>Каждый критерий опирается на признанный стандарт коммуникации</p>
+            </div>
+            <div className="vp-crit-list">
+              {evaluation.criteria.map((c) => (
+                <CriterionCard key={c.name} c={c} />
+              ))}
+            </div>
+          </section>
+        )}
 
-        {/* ——— диалог ——— */}
-        <details className="vp-transcript vp-in">
-          <summary>Показать диалог целиком ({messages.length} реплик)</summary>
-          <div className="vp-transcript-body">
-            {messages.map((m, i) => (
-              <p key={i} className={m.speaker === 'doctor' ? 'is-doc' : 'is-pat'}>
-                <b>{m.speaker === 'doctor' ? 'Вы' : session.patientFirst}:</b> {m.text}
-              </p>
-            ))}
-          </div>
-        </details>
+        {!isExam && (
+          <section className="vp-summary vp-in">
+            <p className="eyebrow">Общий вывод</p>
+            <p className="vp-summary-text">{evaluation.overallSummary}</p>
+          </section>
+        )}
 
-        {/* ——— действия ——— */}
+        {isExam && (
+          <section className="vp-summary vp-in">
+            <p className="eyebrow">Экзамен</p>
+            <p className="vp-summary-text">
+              Результат зафиксирован и передан преподавателю. Развёрнутый разбор по критериям
+              доступен в режиме практики — пройдите похожий кейс без ограничений и сравните.
+            </p>
+          </section>
+        )}
+
+        {!isExam && (
+          <details className="vp-transcript vp-in">
+            <summary>
+              Показать диалог целиком ({messages.length} {plural(messages.length, 'реплика', 'реплики', 'реплик')})
+            </summary>
+            <div className="vp-transcript-body">
+              {messages.map((m, i) => (
+                <p key={i} className={m.speaker === 'doctor' ? 'is-doc' : 'is-pat'}>
+                  <b>{m.speaker === 'doctor' ? 'Вы' : session.patientFirst}:</b> {m.text}
+                </p>
+              ))}
+            </div>
+          </details>
+        )}
+
         <section className="vp-report-actions vp-in">
-          <button type="button" className="vp-btn" disabled={busy} onClick={() => void retrySame()}>
-            {busy ? 'Готовим сцену…' : 'Пройти похожую сцену'}
+          {!isExam && (
+            <button type="button" className="vp-btn" disabled={busy} onClick={() => void retrySame()}>
+              {busy ? 'Готовим сцену…' : 'Пройти этот кейс заново'}
+            </button>
+          )}
+          <button type="button" className="vp-btn vp-btn--ghost" onClick={() => router.push('/')}>
+            Выбрать другой кейс
           </button>
-          <button type="button" className="vp-btn vp-btn--ghost" onClick={() => router.push('/')}>Выбрать другую</button>
-          <button type="button" className="vp-btn vp-btn--ghost" onClick={() => router.push('/history')}>История прогонов</button>
+          <button type="button" className="vp-btn vp-btn--ghost" onClick={() => router.push('/history')}>
+            История прогонов
+          </button>
         </section>
 
         <footer className="vp-report-foot">
-          Разбор выполнен моделью {evaluation.model} · критерии: NURSE, Calgary–Cambridge, принципы Beauchamp &amp; Childress · сцена от {formatShortDate(evaluation.createdAt)}
+          Разбор выполнен моделью {evaluation.model} · {session.framework ?? 'NURSE, Calgary–Cambridge, Beauchamp & Childress'} ·
+          сцена от {formatShortDate(evaluation.createdAt)}
         </footer>
       </main>
     </div>
+  );
+}
+
+/* ---------- Покрытие опроса ---------- */
+
+function CoveragePanel({ coverage }: { coverage: CoverageReport }) {
+  const missed = coverage.items.filter((item) => !item.asked);
+  const asked = coverage.items.filter((item) => item.asked);
+  const [open, setOpen] = useState<'missed' | 'asked'>('missed');
+  const list = open === 'missed' ? missed : asked;
+
+  return (
+    <section className="vp-coverage vp-in">
+      <div className="vp-sec-head">
+        <h2>Что вы спросили и что упустили</h2>
+        <p>
+          Считается по скрытой карточке кейса, а не моделью: у собеседника был полный набор фактов, и
+          он сообщал их только в ответ на ваши вопросы
+        </p>
+      </div>
+
+      <div className="vp-cov-top">
+        <div className={`vp-cov-score is-${toneOf(coverage.score, coverage.maxScore)}`}>
+          <b>
+            {coverage.asked}
+            <i>/{coverage.total}</i>
+          </b>
+          <span>пунктов закрыто</span>
+        </div>
+        <div className="vp-cov-groups">
+          {coverage.groups.map((group) => {
+            const ratio = group.total > 0 ? group.asked / group.total : 0;
+            return (
+              <div className="vp-cov-group" key={group.probe}>
+                <span className="vp-cov-group-name">{group.label}</span>
+                <span className="vp-cov-bar" aria-hidden="true">
+                  <i className={`is-${toneOf(group.asked, group.total)}`} style={{ width: `${ratio * 100}%` }} />
+                </span>
+                <span className="vp-cov-group-num">
+                  {group.asked}/{group.total}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {coverage.criticalMissed.length > 0 && (
+        <p className="vp-cov-critical">
+          <b>Критично пропущено:</b> {coverage.criticalMissed.join('; ')}. Такие пункты весят вдвое —
+          пока они не закрыты, балл за полноту сбора ограничен.
+        </p>
+      )}
+
+      <div className="vp-cov-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={open === 'missed'}
+          className={open === 'missed' ? 'is-active' : undefined}
+          onClick={() => setOpen('missed')}
+        >
+          Не спросили ({missed.length})
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={open === 'asked'}
+          className={open === 'asked' ? 'is-active' : undefined}
+          onClick={() => setOpen('asked')}
+        >
+          Спросили ({asked.length})
+        </button>
+      </div>
+
+      {list.length ? (
+        <ul className="vp-cov-list">
+          {list.map((item) => (
+            <li key={item.id} className={item.critical ? 'is-critical' : undefined}>
+              <span className="vp-cov-item-label">
+                {item.label}
+                {item.critical && <i className="vp-cov-chip">критично</i>}
+              </span>
+              {item.quote && <span className="vp-cov-item-quote">«{item.quote}»</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vp-empty">
+          {open === 'missed' ? 'Вы закрыли все пункты карточки.' : 'Ни один пункт карточки не прозвучал.'}
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -153,12 +304,21 @@ function CriterionCard({ c }: { c: CriterionResult }) {
           <h3>{c.name}</h3>
           <span className="vp-fw-tag">{c.framework}</span>
         </div>
-        <span className="vp-crit-score">{c.score}<i>/{c.maxScore}</i></span>
+        <span className="vp-crit-score">
+          {c.score}
+          <i>/{c.maxScore}</i>
+        </span>
       </div>
       <div className="vp-crit-bar" role="img" aria-label={`${c.score} из ${c.maxScore}`}>
         <i style={{ width: `${ratio * 100}%` }} />
       </div>
-      <p className="vp-crit-evidence">«{c.evidenceQuote}»</p>
+      {c.evidenceQuote ? (
+        <p className="vp-crit-evidence">«{c.evidenceQuote}»</p>
+      ) : (
+        <p className="vp-crit-evidence vp-crit-evidence--empty">
+          Подходящей фразы в ваших репликах не нашлось
+        </p>
+      )}
       <p className="vp-crit-expl">{c.explanation}</p>
     </article>
   );

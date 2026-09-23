@@ -11,6 +11,7 @@ interface HistoryRowLike {
   sessionId: string; domain: string; category: string; moodLabel: string;
   patientFirst: string; createdAt: number; exchangesDone: number;
   totalScore: number; maxScore: number; overallSummary: string; hasSafetyFlag: boolean;
+  mode: 'practice' | 'exam'; format: 'short' | 'long';
 }
 
 export default function HistoryScreen() {
@@ -72,6 +73,8 @@ export default function HistoryScreen() {
                   <p className="vp-hrow-title">{r.domain} · {r.category}</p>
                   <p className="vp-hrow-sub">
                     {r.patientFirst} · эмоция «{r.moodLabel}» · {r.exchangesDone} {plural(r.exchangesDone, 'ответ', 'ответа', 'ответов')}
+                    {r.format === 'long' && <span className="vp-hrow-tag">полный приём</span>}
+                    {r.mode === 'exam' && <span className="vp-hrow-tag">экзамен</span>}
                     {r.hasSafetyFlag && <span className="vp-hrow-flag">требует внимания</span>}
                   </p>
                 </div>
